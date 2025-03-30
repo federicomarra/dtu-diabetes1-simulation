@@ -14,6 +14,10 @@ export class HovorkaModel extends Component {
     x1: { unit: "1/min", default: 0, value: 0, description: "insulin action on glucose transport", history: [] },
     x2: { unit: "1/min", default: 0, value: 0, description: "insulin action on glucose disposal", history: [] },
     x3: { unit: "1/min", default: 0, value: 0, description: "insulin action on endogenous glucose production (liver)", history: [] },
+  };
+
+  constructor() {
+    super({});
   }
 
   /**
@@ -153,7 +157,35 @@ export class HovorkaModel extends Component {
     return parameters
   }
 
-
+  /**
+   * Simulates the glycemic response over time given an initial glycemia,
+   * an array of carbohydrate intakes, and an array of insulin infusions.
+   *
+   * @param {number[]} time - Array of times in minutes.
+   * @param {number} Gstart - Initial glycemia in mmol/L.
+   * @param {number[]} dCho - Array of carbohydrate intakes in grams.
+   * @param {number[]} uIns - Array of insulin infusions.
+   * @returns {number[] | null} - Array of glycemia values over time or null if the input arrays do not have the same length.
+   */
+  simulate(time: number[], Gstart: number, dCho: number[], uIns: number[]) {
+    if (time.length == dCho.length && dCho.length == uIns.length) {
+      let t: number;
+      let d: number;
+      let u: number;
+      let G: number[] = [Gstart];
+      for (let i = 1; i < time.length; i++) {
+        t = time[i];
+        d = dCho[i];
+        u = uIns[i];
+        const UG = this.choAbsorption(t, d);
+        const UI = this.insulinAbsorption(t, u);
+        G.push(this.glucoseRegulatorySystem(t, G[i], UG, UI));
+      }
+      return G;
+    } else {
+      return Array.from({ length: time.length }, (_, i) => 0);
+    }
+  }
 
   render() {
     return (
@@ -165,17 +197,17 @@ export class HovorkaModel extends Component {
 const parameters: ParameterType = {
   "EGP0": { unit: "mmol/kg/min", default: 0.0161, value: 0.0161, description: "endogenous glucose production extrapolated to zero insulin concentration" },
   "F01": { unit: "mmol/kg/min", default: 0.0097, value: 0.0097, description: "non-insulin-dependent glucose ﬂux" },
-  "k12": { unit: "1/min", default: 0.066, value: 0.066, description: "transfer rate from the non-accessible to the accessible compartment" },
-  "ka1": { unit: "1/min", default: 0.006, value: 0.006, description: "deactivation rate" },
-  "ka2": { unit: "1/min", default: 0.06, value: 0.06, description: "deactivation rate" },
-  "ka3": { unit: "1/min", default: 0.03, value: 0.03, description: "deactivation rate" },
-  "SI1": { unit: "1/min/mU/l", default: 51.2e-4, value: 51.2e-4, description: "insulin sensitivity of distribution/transport" },
-  "SI2": { unit: "1/min/mU/l", default: 8.2e-4, value: 8.2e-4, description: "insulin sensitivity of disposal" },
-  "SI3": { unit: "1/mU/l", default: 520e-4, value: 520e-4, description: "insulin sensitivity of EGP" },
-  "ke": { unit: "1/min", default: 0.138, value: 0.138, description: "insulin elimination from plasma" },
+  "k12": { unit: "1/min", default: 0.0649, value: 0.0649, description: "transfer rate from the non-accessible to the accessible compartment" },
+  "ka1": { unit: "1/min", default: 0.0055, value: 0.0055, description: "deactivation rate" },
+  "ka2": { unit: "1/min", default: 0.0683, value: 0.0683, description: "deactivation rate" },
+  "ka3": { unit: "1/min", default: 0.0304, value: 0.0304, description: "deactivation rate" },
+  "SI1": { unit: "1/min/U/l", default: 51.2, value: 51.2, description: "insulin sensitivity of distribution/transport" },
+  "SI2": { unit: "1/min/U/l", default: 8.2, value: 8.2, description: "insulin sensitivity of disposal" },
+  "SI3": { unit: "1/U/l", default: 520, value: 520, description: "insulin sensitivity of EGP" },
+  "ke": { unit: "1/min", default: 0.14, value: 0.14, description: "insulin elimination from plasma" },
   "VI": { unit: "l/kg", default: 0.12, value: 0.12, description: "insulin distribution volume" },
-  "VG": { unit: "l/kg", default: 0.16, value: 0.16, description: "distribution volume of the accessible compartment" },
-  "AG": { unit: "1", default: 0.8, value: 0.8, description: "carbohydrate (CHO) bioavailability" },
+  "VG": { unit: "l/kg", default: 0.148, value: 0.148, description: "distribution volume of the accessible compartment" },
+  "AG": { unit: "1", default: 0.7, value: 0.7, description: "carbohydrate (CHO) bioavailability" },
   "MwG": { unit: "g/mol", default: 180.1577, value: 180.1577, description: "molecular weight of glucose" },
-  "BW": { unit: "kg", default: 75, value: 75, description: "body weight in kg" },
+  "BW": { unit: "kg", default: 65, value: 65, description: "body weight in kg" },
 }
