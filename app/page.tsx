@@ -180,16 +180,19 @@ const Home: NextPage = () => {
           Execute
         </button>
         <h2 className="text-2xl font-semibold mt-8 mb-4">Carbohydrate Intake</h2>
-        <h2 className="text-2xl font-semibold mt-8 mb-4">Simulation result</h2>
-        <LineChart
-          className="mt-4"
-          xAxis={[{ data: time }]}
-          series={
-          [{ data: result.map((value: number) => (value ? value : null)) }]
-        }
-          width={900}
-          height={300}
-        />
+        {result.length > 0 && (
+          <div>
+            <h2 className="text-2xl font-semibold mt-8 mb-4">Simulation result</h2>
+            <LineChart
+              className="mt-4"
+              xAxis={[{data: time}]}
+              series={
+                [{data: result.map((value: number) => (value ? value : null))}]
+              }
+              width={900}
+              height={300}
+            />
+          </div>)}
         {result.length > 0 && (
           <div className="mt-4">
             <h3 className="text-xl font-semibold">Result:</h3>
