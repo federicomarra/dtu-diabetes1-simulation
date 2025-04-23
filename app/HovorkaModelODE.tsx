@@ -1,0 +1,334 @@
+import {Component} from "react";
+import {ModelType, ParameterType, PatientInput, PatientOutput} from "@/app/types";
+
+export class HovorkaModelODE extends Component {
+
+  state: ModelType = {
+    D1: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in stomach", history: [] },
+    D2: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in intestine", history: [] },
+    S1: { unit: "mU", default: 0, value: 0, description: "insulin absorption in adipose tissue 1", history: [] },
+    S2: { unit: "mU", default: 0, value: 0, description: "insulin absorption in muscle tissue 2", history: [] },
+    I: { unit: "mU/l", default: 0, value: 0, description: "insulin in plasma", history: [] },
+    Q1: { unit: "mmol", default: 0, value: 0, min: 0, description: "glucose in blood", history: [] },
+    Q2: { unit: "mmol", default: 0, value: 0, min: 0, description: "glucose in muscles", history: [] },
+    x1: { unit: "1/min", default: 0, value: 0, description: "insulin action on glucose transport", history: [] },
+    x2: { unit: "1/min", default: 0, value: 0, description: "insulin action on glucose disposal", history: [] },
+    x3: { unit: "1/min", default: 0, value: 0, description: "insulin action on endogenous glucose production (liver)", history: [] },
+  };
+
+  constructor() {
+    super({});
+  }
+
+  /**
+   * Computes the insulin infusion rate (IIR) based on the target blood glucose level and time.
+   *
+   * @param {number} targetBG - The target blood glucose level in mmol/L.
+   * @param {number} t - The current time in millisec.
+   * @returns {number} IIR - The computed insulin infusion rate.
+   */
+  computeIIR(targetBG: number, t: number): number {
+    /** extractions of parameters */
+    const params =  this.getParameter();
+    const VG = params.VG.value;
+    const BW = params.BW.value; // body weight in kg
+    const F01 = params.F01.value;
+    let EGP0 = params.EGP0.value;
+    const SI1 = params.SI1.value; // insulin sensitivity of distribution/transport
+    const SI2 = params.SI2.value; // insulin sensitivity of disposal
+    const SI3 = params.SI3.value; // insulin sensitivity of EGP
+    const k12 = params.k12.value; // transfer rate from the non-accessible to the accessible compartment
+    const VI = params.VI.value; // insulin distribution volume
+    const ke = params.ke.value; // insulin elimination from plasma
+    const AG = params.AG.value; // carbohydrate (CHO) bioavailability
+    const MwG = params.MwG.value; // molecular weight of glucose
+    const tauS = params.tauS.value; // maximum insulin absorption time
+
+
+    /** equilibrium blood glucose levels in mmol/l */
+    const Gpeq = targetBG;  // already in mmol/l
+    const Q1eq = Gpeq * VG * BW;
+    const F01eq = F01 * BW * Math.min(Gpeq / 4.5, 1);
+    EGP0 = EGP0 * BW;
+
+    /** equilibrium insulin levels in mU/l */
+    const Ieq_a = - Q1eq * SI1 * SI2 - EGP0 * SI2 * SI3
+    const Ieq_b = -F01eq * SI2 - k12 * Q1eq * SI1
+                       + k12 * SI1 * Q1eq
+                       + EGP0 * SI2 - EGP0 * k12 * SI3
+    const Ieq_c = -F01eq * k12 + EGP0 * k12
+    const Ieq_det = Ieq_b * Ieq_b - 4 * Ieq_a * Ieq_c      // det = b^2 - 4ac
+    if (Ieq_det < 0) {
+      console.error("Negative determinant in insulin equilibrium calculation");
+      return 0;
+    }
+    const Ieq = (-Ieq_b - Math.sqrt(Ieq_det)) / (2 * Ieq_a)   // quadratic formula
+
+    /** equilibrium insulin absorption in mU/min */
+    const Seq = tauS * (VI * BW) * ke * Ieq
+
+    return Seq / tauS / 1000 * 60
+  }
+
+  computeSteady(patient: PatientInput, t: number): ModelType {
+    const params =  this.getParameter();
+    /** extractions of parameters */
+    const VG = params.VG.value;
+    const F01 = params.F01.value;
+    const BW = params.BW.value; // body weight in kg
+    const VI = params.VI.value; // insulin distribution volume
+    const ke = params.ke.value; // insulin elimination from plasma
+    const SI1 = params.SI1.value; // insulin sensitivity of distribution/transport
+    const SI2 = params.SI2.value; // insulin sensitivity of disposal
+    const SI3 = params.SI3.value; // insulin sensitivity of EGP
+    const EGP0 = params.EGP0.value; // endogenous glucose production extrapolated to zero insulin concentration
+    const k12 = params.k12.value; // transfer rate from the non-accessible to the accessible compartment
+    const tauS = params.tauS.value; // maximum insulin absorption time
+
+    /** equilibrium blood glucose levels in mmol/l */
+    const Gpeq = params.Gpeq.value
+    const F01eq = F01 * BW * Math.min(Gpeq / 4.5, 1)
+    const Seq = (patient.iir || 0) * tauS * 1000 / 60
+    const Ieq = Seq / (tauS * (VI * BW) * ke)
+    const x1eq = SI1 * Ieq
+    const x2eq = SI2 * Ieq
+    const x3eq = SI3 * Ieq
+    console.assert(x2eq > 0)    // TODO
+    const Q2eq = -(F01eq - EGP0 * BW * (1 - x3eq)) / x2eq
+    console.assert(Q2eq > 0)    // TODO
+    const Q1eq = Q2eq / x1eq * (k12 + x2eq)
+
+    /** insert values in model nodes */
+    /*this.insertValueInModel(t, "Q1", Q1eq);
+    this.insertValueInModel(t, "Q2", Q2eq);
+    this.insertValueInModel(t, "S1", Seq);
+    this.insertValueInModel(t, "S2", Seq);
+    this.insertValueInModel(t, "I", Ieq);
+    this.insertValueInModel(t, "x1", x1eq);
+    this.insertValueInModel(t, "x2", x2eq);
+    this.insertValueInModel(t, "x3", x3eq);
+    this.insertValueInModel(t, "D1", 0);
+    this.insertValueInModel(t, "D2", 0);*/
+
+      return {
+        Q1: { unit: "mmol", default: 0, value: Q1eq, description: "glucose in blood" },
+        Q2: { unit: "mmol", default: 0, value: Q2eq, description: "glucose in muscles" },
+        S1: { unit: "mU", default: 0, value: Seq, description: "insulin absorption in adipose tissue 1" },
+        S2: { unit: "mU", default: 0, value: Seq, description: "insulin absorption in muscle tissue 2" },
+        I: { unit: "mU/l", default: 0, value: Ieq, description: "insulin in plasma" },
+        x1: { unit: "1/min", default: 0, value: x1eq, description: "insulin action on glucose transport" },
+        x2: { unit: "1/min", default: 0, value: x2eq, description: "insulin action on glucose disposal" },
+        x3: { unit: "1/min", default: 0, value: x3eq, description: "insulin action on endogenous glucose production (liver)" },
+        D1: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in stomach" },
+        D2: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in intestine" },
+      };
+
+  }
+
+  computeDerivatives(t: number, state: ModelType, patient: PatientInput) {
+    /** extractions of parameters */
+    const params =  this.getParameter();
+    const pvalues = this.getParameterValues();  //TODO: fix this and decide which parameters to use
+
+    const BW = params.BW.value; // body weight in kg
+
+    const AG = params.AG.value;
+    const MwG = params.MwG.value;   // molecular weight of glucose
+    const tauS = params.tauS.value; // maximum insulin absorption time
+    const VI = params.VI.value;
+    const ke = params.ke.value;
+    const ka1 = pvalues["ka1"];
+    const VG = params.VG.value;
+
+    const tauD = params.tauD.value; // maximum glucose absorption time
+
+    const F01 = params.F01.value * BW;   // glucose appearance rate in mmol/min
+    const EGP0 = params.EGP0.value * BW; // endogenous glucose production extrapolated to zero insulin concentration
+
+    const k12 = params.k12.value; // transfer rate from the non-accessible to the accessible compartment
+    const SI1 = params.SI1.value; // insulin sensitivity of distribution/transport
+    const SI2 = params.SI2.value; // insulin sensitivity of disposal
+    const SI3 = params.SI3.value; // insulin sensitivity of EGP
+    const ka2 = pvalues["ka2"];
+    const ka3 = pvalues["ka3"];
+
+
+
+    /** extractions of patient model nodes */
+    const IIR = (patient.iir || 0) * 1000 / 60;    // insulin infusion rate in mU/min
+    const D = (1000 / MwG) * (patient.carbs || 0); // eq:2.10 (meal ingestion in mmol/min)
+    const G = state.Q1.value / (VG * BW);          // eq:2.3 (glucose in mmol/l)
+
+    /** extractions of state model nodes */
+    const S1 = state.S1.value;
+    const S2 = state.S2.value;
+    const I = state.I.value;
+
+    const D1 = state.D1.value;
+    const D2 = state.D2.value;
+
+    const x1 = state.x1.value;
+    const x2 = state.x2.value;
+    const x3 = state.x3.value;
+
+    const Q1 = state.Q1.value;
+    const Q2 = state.Q2.value;
+
+
+    /** cho absorption */
+    const dD1 = (AG * D) - ((1 / tauD) * D1);                             // eq:2.8a
+    const dD2 = (1 / tauD) * (D1 - D2);                                   // eq:2.8b
+    const UG = (1 / tauD) * D2;                                           // eq:2.9
+
+    /** insulin absorption */
+    const dS1 = IIR - ((1 / tauS) * S1);                                  // eq:2.11a
+    const dS2 = (1 / tauS) * (S1 - S2);                                   // eq:2.11b
+    const UI = (1 / tauS) * S2;                                           // eq:2.12
+    const dI = (UI / VI) - (ke * I);                                      // eq:2.6
+
+    /** glucose */
+    const F01c = G >= 4.5 ? F01 : F01 * G / 4.5;                          // eq:2.4
+    const FR = G >= 9 ? 0.003 * (G - 9) * VG : 0;                         // eq:2.5
+    const dQ1 = UG + EGP0 * (1 - x3) + k12 * Q2 - F01c - FR - (x1 * Q1);  // eq:2.1
+    const dQ2 = x1 * Q1 - (k12 + x2) * Q2;                                // eq:2.2
+
+    /** insulin action */
+    const kb1 = SI1 * ka1;                                                // eq:2.13
+    const kb2 = SI2 * ka2;                                                // eq:2.13
+    const kb3 = SI3 * ka3;                                                // eq:2.13
+    const dx1 = kb1 * I - ka1 * x1;                                       // eq:2.7a
+    const dx2 = kb2 * I - ka2 * x2;                                       // eq:2.7b
+    const dx3 = kb3 * I - ka3 * x3;                                       // eq:2.7c
+
+    return {
+      // glucose subsystem
+      Q1: dQ1,
+      Q2: dQ2,
+
+      // insulin subsystem
+      S1: dS1,
+      S2: dS2,
+      I: dI,
+
+      // insulin action subsystem
+      x1: dx1,
+      x2: dx2,
+      x3: dx3,
+
+      // cho subsystem
+      D1: dD1,
+      D2: dD2
+    }
+
+
+  }
+
+  computeOutput(t: number, state: ModelType): PatientOutput {
+    /** extractions of model nodes */
+    const Q1 = state.Q1.value;
+    const BW = this.getParameter().BW.value; // body weight in kg
+    const MwG = this.getParameter().MwG.value; // molecular weight of glucose
+    const VG = this.getParameter().VG.value; // glucose distribution volume
+
+    const G = Q1 / VG; // eq:2.3 (glucose in mmol/l)
+
+    return {
+      Gp: G,
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+  /**
+   * Updates the model with the given value at the specified time.
+   *
+   * @param {number} t - The current time in minutes.
+   * @param {string} key - The key of the model property to update.
+   * @param {number} newvalue - The new value to set for the model property.
+   */
+  insertValueInModel(t: number, key: string, newvalue: number) {
+    if (this.state[key].max && newvalue > this.state[key].max)
+      newvalue = this.state[key].max;
+    if (this.state[key].min && newvalue < this.state[key].min)
+      newvalue = this.state[key].min;
+    this.state[key].value = newvalue;
+
+    if (this.state[key].history)
+      this.state[key].history.push({t, value: newvalue});
+    else
+      this.state[key].history = [{t, value: newvalue}];
+  }
+
+  /**
+   * Updates the model with the given delta value at the specified time.
+   *
+   * @param {number} t - The current time in minutes.
+   * @param {string} key - The key of the model property to update.
+   * @param {number} delta - The change in value to apply to the model property.
+   */
+  updateModel(state: any, t: number, key: string, value?: number, delta?: number) {
+    let newvalue;
+    if (delta) {
+      newvalue = state[key].value + delta;
+    } else {
+      newvalue = value || 0;
+    }
+    if (state[key].max && newvalue > state[key].max)
+      newvalue = state[key].max;
+    if (state[key].min && newvalue < state[key].min)
+      newvalue = state[key].min;
+    state[key].value = newvalue;
+
+    if (state[key].history || state[key].history.length > 0)
+      state[key].history.push({t, value: newvalue});
+    else
+      state[key].history = [{t, value: newvalue}];
+  }
+
+  getParameter() {
+    return parameters
+  }
+
+  getParameterValues(): { [key: string]: number } {
+    return Object.keys(parameters).reduce((acc: { [key: string]: number }, key: string) => {
+      acc[key] = parameters[key].value;
+      return acc;
+    }, {});
+  }
+
+
+  render() {
+    return (
+      <></>
+    );
+  }
+}
+
+const parameters: ParameterType = {
+  "EGP0": { unit: "mmol/kg/min", default: 0.0161, value: 0.0161, description: "endogenous glucose production extrapolated to zero insulin concentration" },
+  "F01": { unit: "mmol/kg/min", default: 0.0097, value: 0.0097, description: "non-insulin-dependent glucose ﬂux" },
+  "k12": { unit: "1/min", default: 0.0649, value: 0.0649, description: "transfer rate from the non-accessible to the accessible compartment" },
+  "ka1": { unit: "1/min", default: 0.0055, value: 0.0055, description: "deactivation rate" },
+  "ka2": { unit: "1/min", default: 0.0683, value: 0.0683, description: "deactivation rate" },
+  "ka3": { unit: "1/min", default: 0.0304, value: 0.0304, description: "deactivation rate" },
+  "SI1": { unit: "1/min/U/l", default: 51.2, value: 51.2, description: "insulin sensitivity of distribution/transport" },
+  "SI2": { unit: "1/min/U/l", default: 8.2, value: 8.2, description: "insulin sensitivity of disposal" },
+  "SI3": { unit: "1/U/l", default: 520, value: 520, description: "insulin sensitivity of EGP" },
+  "ke": { unit: "1/min", default: 0.14, value: 0.14, description: "insulin elimination from plasma" },
+  "VI": { unit: "l/kg", default: 0.12, value: 0.12, description: "insulin distribution volume" },
+  "VG": { unit: "l/kg", default: 0.148, value: 0.148, description: "distribution volume of the accessible compartment" },
+  "AG": { unit: "1", default: 0.7, value: 0.7, description: "carbohydrate (CHO) bioavailability" },
+  "MwG": { unit: "g/mol", default: 180.1577, value: 180.1577, description: "molecular weight of glucose" },
+  "BW": { unit: "kg", default: 65, value: 65, description: "body weight in kg" },
+  "tauS": { unit: "min", default: 55, value: 55, description: "time-to-maximum of absorption of subcutaneously injected short-acting insulin"},
+  "tauG": { unit: "min", default: 40, value: 40, description: "time-to-maximum of CHO absorption"},
+}
