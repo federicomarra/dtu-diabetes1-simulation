@@ -1,7 +1,10 @@
 import {Component} from "react";
-import {ModelType, ParameterType, PatientInput, PatientOutput} from "@/app/types";
+import {ModelType, NamedVector, ParameterType, PatientInput, PatientOutput} from "@/app/types";
+import {Derivatives} from "@/app/Solver";
 
 export class HovorkaModelODE extends Component {
+
+  tInit: Date = new Date();
 
   state: ModelType = {
     D1: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in stomach", history: [] },
@@ -70,7 +73,7 @@ export class HovorkaModelODE extends Component {
     return Seq / tauS / 1000 * 60
   }
 
-  computeSteady(patient: PatientInput, t: number): ModelType {
+  computeSteady(patient: PatientInput, t: number): NamedVector {
     const params =  this.getParameter();
     /** extractions of parameters */
     const VG = params.VG.value;
@@ -93,52 +96,37 @@ export class HovorkaModelODE extends Component {
     const x1eq = SI1 * Ieq
     const x2eq = SI2 * Ieq
     const x3eq = SI3 * Ieq
-    console.assert(x2eq > 0)    // TODO
     const Q2eq = -(F01eq - EGP0 * BW * (1 - x3eq)) / x2eq
-    console.assert(Q2eq > 0)    // TODO
     const Q1eq = Q2eq / x1eq * (k12 + x2eq)
 
-    /** insert values in model nodes */
-    /*this.insertValueInModel(t, "Q1", Q1eq);
-    this.insertValueInModel(t, "Q2", Q2eq);
-    this.insertValueInModel(t, "S1", Seq);
-    this.insertValueInModel(t, "S2", Seq);
-    this.insertValueInModel(t, "I", Ieq);
-    this.insertValueInModel(t, "x1", x1eq);
-    this.insertValueInModel(t, "x2", x2eq);
-    this.insertValueInModel(t, "x3", x3eq);
-    this.insertValueInModel(t, "D1", 0);
-    this.insertValueInModel(t, "D2", 0);*/
-
       return {
-        Q1: { unit: "mmol", default: 0, value: Q1eq, description: "glucose in blood" },
-        Q2: { unit: "mmol", default: 0, value: Q2eq, description: "glucose in muscles" },
-        S1: { unit: "mU", default: 0, value: Seq, description: "insulin absorption in adipose tissue 1" },
-        S2: { unit: "mU", default: 0, value: Seq, description: "insulin absorption in muscle tissue 2" },
-        I: { unit: "mU/l", default: 0, value: Ieq, description: "insulin in plasma" },
-        x1: { unit: "1/min", default: 0, value: x1eq, description: "insulin action on glucose transport" },
-        x2: { unit: "1/min", default: 0, value: x2eq, description: "insulin action on glucose disposal" },
-        x3: { unit: "1/min", default: 0, value: x3eq, description: "insulin action on endogenous glucose production (liver)" },
-        D1: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in stomach" },
-        D2: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in intestine" },
+        Q1: Q1eq,   // glucose in blood
+        Q2: Q2eq,   // glucose in muscles
+        S1: Seq,    // insulin absorption in adipose tissue 1
+        S2: Seq,    // insulin absorption in adipose tissue 2
+        I: Ieq,     // insulin in plasma,
+        x1: x1eq,   // insulin action on glucose transport
+        x2: x2eq,   // insulin action on glucose disposal
+        x3: x3eq,   // insulin action on endogenous glucose production (liver)
+        D1: 0,      // glucose absorption in stomach
+        D2: 0,      // glucose absorption in intestine
       };
-
   }
 
-  computeDerivatives(t: number, state: ModelType, patient: PatientInput) {
+  computeDerivatives(t: Date, state: ModelType, patient: PatientInput): NamedVector {
     /** extractions of parameters */
     const params =  this.getParameter();
     const pvalues = this.getParameterValues();  //TODO: fix this and decide which parameters to use
 
     const BW = params.BW.value; // body weight in kg
 
-    const AG = params.AG.value;
+    const AG = params.AG.value;     // carbohydrate (CHO) bioavailability
     const MwG = params.MwG.value;   // molecular weight of glucose
     const tauS = params.tauS.value; // maximum insulin absorption time
-    const VI = params.VI.value;
+    const VI = params.VI.value * BW;
     const ke = params.ke.value;
     const ka1 = pvalues["ka1"];
-    const VG = params.VG.value;
+    const VG = params.VG.value * BW;
 
     const tauD = params.tauD.value; // maximum glucose absorption time
 
@@ -156,8 +144,8 @@ export class HovorkaModelODE extends Component {
 
     /** extractions of patient model nodes */
     const IIR = (patient.iir || 0) * 1000 / 60;    // insulin infusion rate in mU/min
-    const D = (1000 / MwG) * (patient.carbs || 0); // eq:2.10 (meal ingestion in mmol/min)
-    const G = state.Q1.value / (VG * BW);          // eq:2.3 (glucose in mmol/l)
+    const D = (patient.carbs) ? (1000 / MwG) * (patient.carbs[this.getIndexFromTime(t)] || 0) : 0; // eq:2.10 (meal ingestion in mmol/min)
+    const G = state.Q1.value / (VG);          // eq:2.3 (glucose in mmol/l)
 
     /** extractions of state model nodes */
     const S1 = state.S1.value;
@@ -200,7 +188,7 @@ export class HovorkaModelODE extends Component {
     const dx2 = kb2 * I - ka2 * x2;                                       // eq:2.7b
     const dx3 = kb3 * I - ka3 * x3;                                       // eq:2.7c
 
-    return {
+    const vect: NamedVector = {
       // glucose subsystem
       Q1: dQ1,
       Q2: dQ2,
@@ -220,21 +208,21 @@ export class HovorkaModelODE extends Component {
       D2: dD2
     }
 
+    //return (t, vect) => vect
+    return vect
 
   }
 
-  computeOutput(t: number, state: ModelType): PatientOutput {
+  computeOutput(state: NamedVector): number {
     /** extractions of model nodes */
-    const Q1 = state.Q1.value;
+    const Q1 = state.Q1;
     const BW = this.getParameter().BW.value; // body weight in kg
-    const MwG = this.getParameter().MwG.value; // molecular weight of glucose
-    const VG = this.getParameter().VG.value; // glucose distribution volume
+    //const MwG = this.getParameter().MwG.value; // molecular weight of glucose
+    const VG = this.getParameter().VG.value * BW; // glucose distribution volume
 
     const G = Q1 / VG; // eq:2.3 (glucose in mmol/l)
 
-    return {
-      Gp: G,
-    }
+    return G
   }
 
 
@@ -305,6 +293,10 @@ export class HovorkaModelODE extends Component {
     }, {});
   }
 
+  getIndexFromTime(t: Date): number {
+    return Math.floor((t.valueOf() - this.tInit.valueOf()) / (1000 * 60));
+  }
+
 
   render() {
     return (
@@ -312,6 +304,8 @@ export class HovorkaModelODE extends Component {
     );
   }
 }
+
+
 
 const parameters: ParameterType = {
   "EGP0": { unit: "mmol/kg/min", default: 0.0161, value: 0.0161, description: "endogenous glucose production extrapolated to zero insulin concentration" },
