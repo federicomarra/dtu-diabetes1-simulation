@@ -1,9 +1,9 @@
 'use client'
 
-import { NextPage } from "next";
-import { useState } from "react";
-import { HovorkaModel } from "@/app/HovorkaModel";
-import { LineChart } from '@mui/x-charts/LineChart';
+import {NextPage} from "next";
+import {useState} from "react";
+import {HovorkaModel} from "@/app/HovorkaModel";
+import {LineChart} from '@mui/x-charts/LineChart';
 import {width} from "@mui/system";
 import {Simulator} from "@/app/Simulator";
 import {HovorkaModelODE} from "@/app/HovorkaModelODE";
@@ -30,20 +30,59 @@ const Home: NextPage = () => {
     //return Math.floor(rawValue / step) * step; // Round to the nearest step
   }
 
-  const initDays = 1;
-  const [days, setDays] = useState<number>(initDays);
-  const initTime = (days: number) => Array.from({ length: 24 * days }, (_, i) => i + 1)
+  const [conversionFactor, setConversionFactor] = useState<number>(18.01528);
+
+  // SIMULATION PARAMETERS
+  // Number of days for the simulation
+  const defaultDays = 1;
+  const [days, setDays] = useState<number>(defaultDays);
+  const defaultTimeStep = 1; // Default time step in minutes
+  const possibleTimeSteps = [1, 5, 10, 30, 60]; // Possible time steps in minutes
+  const [timeStep, setTimeStep] = useState<number>(defaultTimeStep); // Time step in minutes
+  const timeLength_days = (days: number, timeStep: number) => days * 24 * 60 / timeStep + 1; // Total time length in minutes, +1 to include the 24:00
+  const [timeLength, setTimeLength] = useState<number>(timeLength_days(days, timeStep)); // Total time length in minutes if timeStep is 1 minute
+  const initTime = (days: number) => Array.from({length: timeLength}, (_, i) => i)
   const [time, setTime] = useState<number[]>(initTime(days));
-  const initGlyc = 100;
-  const initDCho = (days: number) => Array.from({length: 24 * days}, (_, i) => i % 24 == 7 ? 50 : i % 24 == 12 ? 75 : i % 24 == 20 ? 40 : 0);
-  const initUIns = (days: number) => Array.from({ length: 24 * days }, (_, i) => i % 24 < 7 ? 1.5 : i % 24 < 12 ? 1.3 : i % 24 < 20 ? 1.4 : 0);
+
+  // Glycemia unit: false for mmol/L, true for mg/dL
+  const [unitMgDl, setUnitMgDl] = useState<boolean>(false); // false for mmol/L, true for mg/dL
+  const initMinGlyc = () => unitMgDl ? 50 : 2.8;
+  const initMaxGlyc = () => unitMgDl ? 300 : 16.7;
+  const [minGlycemia, setMinGlycemia] = useState<number>(initMinGlyc());
+  const [maxGlycemia, setMaxGlycemia] = useState<number>(initMaxGlyc());
+
+  const repeatArray = (arr: number[]) => {
+    const repeatedArray = [];
+    for (let i = 0; i < days; i++) {
+      repeatedArray.push(...arr.slice(0, arr.length - 2));
+    }
+    repeatedArray.push(arr[arr.length - 1]); // Ensure the last element is included
+    return repeatedArray;
+  }
+
+  const convertGlycemia = (glycemia: number, toMgDl: boolean): number => {
+    const factor = toMgDl ? conversionFactor : 1 / conversionFactor;
+    const roundToDecimal = (value: number, decimals: number): number => {
+      const factor = Math.pow(10, decimals);
+      return Math.round(value * factor) / factor;
+    }
+    return roundToDecimal(glycemia * factor, toMgDl ? 0 : 1);
+  }
+
+  function changeUnit(toMgDl: boolean) {
+    setUnitMgDl(toMgDl);
+    setMinGlycemia(initMinGlyc());
+    setMaxGlycemia(initMaxGlyc());
+    setResult(result.map(glycemia => convertGlycemia(glycemia, toMgDl)));
+  }
+
 
   // PATIENT PARAMETERS
   // EGP0: Endogenous Glucose Production rate
-  const [EGP0_mean,setEGP0_mean] = useState(0.0161); // EGP0 mean value in mmol/min/kg
-  const [EGP0_stdDev,setEGP0_stdDev] = useState(0.0039); // EGP0 standard deviation in mmol/min/kg
+  const [EGP0_mean, setEGP0_mean] = useState(0.0161); // EGP0 mean value in mmol/min/kg
+  const [EGP0_stdDev, setEGP0_stdDev] = useState(0.0039); // EGP0 standard deviation in mmol/min/kg
   const EGP0_step = 0.0001; // EGP0 step size for input field
-  const [EGP0_value, setEGP0_value] = useState(generateValueGivenMeanAndStdDev(EGP0_mean, EGP0_stdDev,EGP0_step)); // EGP0 initial value in mmol/min/kg
+  const [EGP0_value, setEGP0_value] = useState(generateValueGivenMeanAndStdDev(EGP0_mean, EGP0_stdDev, EGP0_step)); // EGP0 initial value in mmol/min/kg
   const EGP0_unit = "mmol / min / kg"; // EGP0 unit
   const EGP0_description = "Endogenous glucose production rate is the rate at which glucose is produced by the liver in the absence of food intake or insulin stimulation. It is a key parameter in glucose metabolism and regulation.";
   const [EGP0_hover, setEGP0_hover] = useState(false); // EGP0 hover state for tooltip
@@ -183,12 +222,31 @@ const Home: NextPage = () => {
   const BW_description = "Body weight of the patient, which influences insulin sensitivity and glucose metabolism.";
   const [BW_hover, setBW_hover] = useState(false); // BW hover state for tooltip
 
+  const params = {
+    "days": days,
+    "time": time,
+    "EGP0": EGP0_value,
+    "F01": F01_value,
+    "K12": K12_value,
+    "Ka1": Ka1_value,
+    "Ka2": Ka2_value,
+    "Ka3": Ka3_value,
+    "SI1": SI1_value,
+    "SI2": SI2_value,
+    "SI3": SI3_value,
+    "Ke": Ke_value,
+    "VI": VI_value,
+    "VG": VG_value,
+    "TauI": TauI_value,
+    "TauG": TauG_value,
+    "AG": AG_value,
+    "BW": BW_value
+  };
+
 
   // MEAL PARAMETERS
   const carbs_step = 5; // Step size for carbohydrate intake in grams
-  const breakfast_mean = 40; // Mean carbohydrate intake for breakfast in grams
-  const breakfast_stdDev = 10; // Standard deviation for breakfast carbohydrate intake in grams
-  const [breakfastValue, setBreakfastValue] = useState(generateValueGivenMeanAndStdDev(breakfast_mean, breakfast_stdDev, carbs_step));
+  const [breakfastValue, setBreakfastValue] = useState(generateValueGivenMeanAndStdDev(40, 10, carbs_step));
   const [lunchValue, setLunchValue] = useState(generateValueGivenMeanAndStdDev(70, 15, carbs_step));
   const [snackValue, setSnackValue] = useState(generateValueGivenMeanAndStdDev(10, 35, carbs_step, "uniform"));
   const [dinnerValue, setDinnerValue] = useState(generateValueGivenMeanAndStdDev(50, 10, carbs_step));
@@ -196,48 +254,63 @@ const Home: NextPage = () => {
   const carbs = [
     {
       "meal": "Breakfast",
-      "time": "08:00",
+      "hour": "08:00",
+      "time": 8 * 60 / timeStep, // 8:00 in minutes
       "value": breakfastValue
     },
     {
       "meal": "Lunch",
-      "time": "12:00",
+      "hour": "12:00",
+      "time": 12 * 60 / timeStep, // 12:00 in minutes
       "value": lunchValue
     },
     {
       "meal": "Snack",
-      "time": "16:00",
+      "hour": "16:00",
+      "time": 16 * 60 / timeStep, // 16:00 in minutes
       "value": snackValue
     },
     {
       "meal": "Dinner",
-      "time": "20:00",
+      "hour": "20:00",
+      "time": 20 * 60 / timeStep, // 20:00 in minutes
       "value": dinnerValue
     }
   ];
 
+  const dCho_days = (days: number) => {
+    const array_to_repeat = Array.from({length: (timeLength - 1) / days}, (_, i) => {
+      for (const meal of carbs) {
+        if (i === meal.time) {
+          console.log("HELLO", meal.time)
+          return meal.value; // Return the carbohydrate intake value for the meal at that hour
+        }
+      }
+      return 0; // No carbohydrate intake at other times
+    })
+    return repeatArray(array_to_repeat);
+  }
 
-  
+  const [dCho, setDCho] = useState<number[]>(dCho_days(days));
 
 
-  const [unitMgDl, setUnitMgDl] = useState<boolean>(true);
-
-  const initMinGlyc = () => unitMgDl ? 50 : 2.8;
-  const initMaxGlyc = () => unitMgDl ? 300 : 16.7;
-  const [minGlycemia, setMinGlycemia] = useState<number>(initMinGlyc());
-  const [maxGlycemia, setMaxGlycemia] = useState<number>(initMaxGlyc());
-  const [startGlycemia, setStartGlycemia] = useState<number>(initGlyc);
-  const [dCho, setDCho] = useState<number[]>(initDCho(days));
-  const [uIns, setUIns] = useState<number[]>(initUIns(days));
+  const uIns_days = (days: number) => Array.from({length: 24 * days}, (_, i) => i % 24 < 7 ? 1.5 : i % 24 < 12 ? 1.3 : i % 24 < 20 ? 1.4 : 0);
+  const [uIns, setUIns] = useState<number[]>(uIns_days(days));
   const [result, setResult] = useState<number[]>([]);
-  const [conversionFactor, setConversionFactor] = useState<number>(18.01528);
 
-  const setParams = (new_value: number, name?: string) => {
-    if (name=="days") {
+  const setParams = (new_value: number, name: string) => {
+    if (name == "days") {
       setDays(new_value);
       setTime(initTime(new_value));
-      setDCho(initDCho(new_value));
-      setUIns(initUIns(new_value));
+      setDCho(dCho_days(new_value));
+      setUIns(uIns_days(new_value));
+      setResult([]);
+    } else if (name == "timeStep") {
+      setTimeStep(new_value);
+      setTimeLength(timeLength_days(days, new_value));
+      setTime(initTime(days));
+      setDCho(dCho_days(days));
+      setUIns(uIns_days(days));
       setResult([]);
     } else {
       switch (name) {
@@ -289,8 +362,11 @@ const Home: NextPage = () => {
         case "BW":
           setBW_value(new_value);
           break;
-        }
+
+        default:
+          console.warn("Unknown parameter type:", name);
       }
+    }
   }
 
   const setMeal = (meal: string, value: number) => {
@@ -312,16 +388,13 @@ const Home: NextPage = () => {
     }
   }
 
-  const repeatArray = (arr: number[]) => {
-    const repeatedArray = [];
-    for (let i = 0; i < days; i++) {
-      repeatedArray.push(...arr);
-    }
-    return repeatedArray;
-  }
 
   const handleExecute = () => {
-    console.log(carbs)
+    console.log("Parameters:", params);
+    console.log("Carbs = ", carbs)
+
+    console.log("dCho=", dCho);
+
     /*
     // @ts-ignore
     const model = new HovorkaModel({});
@@ -357,24 +430,11 @@ const Home: NextPage = () => {
     //const result = Simulator(days, startGlycemia/ (unitMgDl ? MwG * 10 : 1), patient, model);
     //if (result) setResult(result[0]);
 
-    const inputGlyc = startGlycemia / (unitMgDl ? MwG * 10 : 1);
+    const inputGlyc = 100 / (unitMgDl ? MwG * 10 : 1);
     const basicArray = [initMinGlyc(), inputGlyc, initMaxGlyc()];
-    const result = repeatArray(Array(8).fill(0).flatMap(() => basicArray));
+    //const result = repeatArray(Array(8).fill(0).flatMap(() => basicArray));
     setResult(result);
 
-  }
-
-  function changeUnit(toMgDl: boolean) {
-    const factor = toMgDl ? conversionFactor : 1 / conversionFactor;
-    const roundToDecimal = (value: number, decimals: number): number => {
-      const factor = Math.pow(10, decimals);
-      return Math.round(value * factor) / factor;
-    }
-    const newGlycemia = roundToDecimal(startGlycemia * factor, toMgDl ? 0 : 1);
-    setStartGlycemia(newGlycemia);
-    setUnitMgDl(toMgDl);
-    setMinGlycemia(initMinGlyc());
-    setMaxGlycemia(initMaxGlyc());
   }
 
   // @ts-ignore
@@ -408,43 +468,83 @@ const Home: NextPage = () => {
       </p>*/}
 
       <div className="mt-8">
-        <div className="">
-        <h2 className="text-2xl font-semibold mb-4">Simulation Parameters</h2>
-        <label htmlFor="days" className="block text-lg font-medium mb-2">
-          Simulation time: <input
-            type="number"
-            id="days"
-            name="days"
-            value={days}
-            onChange={(e) => setParams(Number(e.target.value), "days")}
-            min="1"
-            max="7"
-            data-np-intersection-state="observed"
-          /> day{days > 1 ? "s" : ""}
-        </label>
-        </div>
+        <div className="mt-8 overflow-visible relative">
+          <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Simulation Parameters</h2>
+          <div className="overflow-x-auto overflow-visible relative">
+            <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
+                   style={{borderColor: "var(--primary)"}}>
+              <thead>
+              <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Parameter</th>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value</th>
+              </tr>
+              </thead>
+              <tbody className="text-center">
+              <tr>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Days to simulate
+                </td>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                  <input
+                    type="number"
+                    id="days"
+                    name="days"
+                    value={days}
+                    onChange={(e) => setParams(Number(e.target.value), "days")}
+                    min="1"
+                    max="7"
+                    data-np-intersection-state="observed"
+                  /> day{days > 1 ? "s" : ""}
+                </td>
+              </tr>
 
-        <div className="flex flex-row" id="start-glycemia-div">
-          <label className="block text-lg font-medium mb-2">
-            Blood sugar unit:
-            <select
-              id="unit"
-              name="unit"
-              onChange={(e) => {
-                changeUnit(e.target.value === "mg/dL");
-              }}
-              defaultValue={"mmol/L"}
-            >
-              <option value="mg/dL">mg/dL</option>
-              <option value="mmol/L">mmol/L</option>
-            </select>
-          </label>
+              <tr>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Time step</td>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                  <select
+                    id="unit"
+                    name="unit"
+                    onChange={(e) => {
+                      setParams(Number(e.target.value), "timeStep");
+                    }}
+                    data-np-intersection-state="observed"
+                    defaultValue={defaultTimeStep}
+                  >
+                    {possibleTimeSteps.map((step) => (
+                      <option key={step} value={step}>{step}</option>
+                    ))}
+                  </select> minute{timeStep != 1 ? "s" : ""}
+                </td>
+              </tr>
+
+              <tr>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Blood glucose
+                  unit
+                </td>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                  <select
+                    id="unit"
+                    name="unit"
+                    onChange={(e) => {
+                      changeUnit(e.target.value === "mg/dL");
+                    }}
+                    data-np-intersection-state="observed"
+                    defaultValue={unitMgDl ? "mg/dL" : "mmol/L"}
+                  >
+                    <option value="mmol/L">mmol/L</option>
+                    <option value="mg/dL">mg/dL</option>
+                  </select>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="mt-8 overflow-visible relative">
           <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Patient Parameters</h2>
-          <div className="overflow-x-auto overflow-visible relative" >
-            <table className="min-w-full border-collapse border overflow-visible relative" style={{borderColor: "var(--primary)"}}>
+          <div className="overflow-x-auto overflow-visible relative">
+            <table className="min-w-full border-collapse border overflow-visible relative"
+                   style={{borderColor: "var(--primary)"}}>
               <thead>
               <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
                 <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Parameter</th>
@@ -458,7 +558,8 @@ const Home: NextPage = () => {
 
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>EGP</i><sub>0</sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>EGP</i><sub>0</sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -472,17 +573,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{EGP0_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={EGP0_step} className="w-[6.5ch] px-1 text-right" name="EGP0 mean"
-                  onChange={(e) => setEGP0_mean(Number(e.target.value))} value={EGP0_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setEGP0_mean(Number(e.target.value))} value={EGP0_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={EGP0_step} className="w-[6.5ch] px-1 text-right" name="EGP0 std dev"
-                  onChange={(e) => setEGP0_stdDev(Number(e.target.value))} value={EGP0_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setEGP0_stdDev(Number(e.target.value))} value={EGP0_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setEGP0_hover(true)}
-                    onMouseLeave={()=>setEGP0_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setEGP0_hover(true)}
+                    onMouseLeave={() => setEGP0_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {EGP0_hover ? EGP0_description : <b>?</b>}
                   </div>
@@ -490,7 +595,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>F</i><sub>01</sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>F</i><sub>01</sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -504,17 +610,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{F01_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={F01_step} className="w-[6.5ch] px-1 text-right" name="F01 mean"
-                  onChange={(e) => setF01_mean(Number(e.target.value))} value={F01_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setF01_mean(Number(e.target.value))} value={F01_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={F01_step} className="w-[6.5ch] px-1 text-right" name="F01 std dev"
-                  onChange={(e) => setF01_stdDev(Number(e.target.value))} value={F01_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setF01_stdDev(Number(e.target.value))} value={F01_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setF01_hover(true)}
-                    onMouseLeave={()=>setF01_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setF01_hover(true)}
+                    onMouseLeave={() => setF01_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {F01_hover ? F01_description : <b>?</b>}
                   </div>
@@ -522,7 +632,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>k</i><sub>12</sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>k</i><sub>12</sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -536,17 +647,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={K12_step} className="w-[6.5ch] px-1 text-right" name="K12 mean"
-                  onChange={(e) => setK12_mean(Number(e.target.value))} value={K12_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setK12_mean(Number(e.target.value))} value={K12_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={K12_step} className="w-[6.5ch] px-1 text-right" name="K12 std dev"
-                  onChange={(e) => setK12_stdDev(Number(e.target.value))} value={K12_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setK12_stdDev(Number(e.target.value))} value={K12_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setK12_hover(true)}
-                    onMouseLeave={()=>setK12_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setK12_hover(true)}
+                    onMouseLeave={() => setK12_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {K12_hover ? K12_description : <b>?</b>}
                   </div>
@@ -554,7 +669,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>k</i><sub><i>a</i>,1</sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>k</i><sub><i>a</i>,1</sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -568,17 +684,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={Ka1_step} className="w-[6.5ch] px-1 text-right" name="Ka1 mean"
-                  onChange={(e) => setKa1_mean(Number(e.target.value))} value={Ka1_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setKa1_mean(Number(e.target.value))} value={Ka1_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={Ka1_step} className="w-[6.5ch] px-1 text-right" name="Ka1 std dev"
-                  onChange={(e) => setKa1_stdDev(Number(e.target.value))} value={Ka1_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setKa1_stdDev(Number(e.target.value))} value={Ka1_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setKa1_hover(true)}
-                    onMouseLeave={()=>setKa1_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setKa1_hover(true)}
+                    onMouseLeave={() => setKa1_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {Ka1_hover ? Ka1_description : <b>?</b>}
                   </div>
@@ -586,7 +706,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>k</i><sub><i>a</i>,2</sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>k</i><sub><i>a</i>,2</sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -600,17 +721,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={Ka2_step} className="w-[6.5ch] px-1 text-right" name="Ka2 mean"
-                  onChange={(e) => setKa2_mean(Number(e.target.value))} value={Ka2_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setKa2_mean(Number(e.target.value))} value={Ka2_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={Ka2_step} className="w-[6.5ch] px-1 text-right" name="Ka2 std dev"
-                  onChange={(e) => setKa2_stdDev(Number(e.target.value))} value={Ka2_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setKa2_stdDev(Number(e.target.value))} value={Ka2_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setKa2_hover(true)}
-                    onMouseLeave={()=>setKa2_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setKa2_hover(true)}
+                    onMouseLeave={() => setKa2_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {Ka2_hover ? Ka2_description : <b>?</b>}
                   </div>
@@ -618,7 +743,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>k</i><sub><i>a</i>,3</sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>k</i><sub><i>a</i>,3</sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -632,17 +758,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={Ka3_step} className="w-[6.5ch] px-1 text-right" name="Ka3 mean"
-                  onChange={(e) => setKa3_mean(Number(e.target.value))} value={Ka3_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setKa3_mean(Number(e.target.value))} value={Ka3_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={Ka3_step} className="w-[6.5ch] px-1 text-right" name="Ka3 std dev"
-                  onChange={(e) => setKa3_stdDev(Number(e.target.value))} value={Ka3_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setKa3_stdDev(Number(e.target.value))} value={Ka3_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setKa3_hover(true)}
-                    onMouseLeave={()=>setKa3_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg" style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setKa3_hover(true)}
+                    onMouseLeave={() => setKa3_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {Ka3_hover ? Ka3_description : <b>?</b>}
                   </div>
@@ -650,7 +780,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>S</i><sub><i>I</i>,1</sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>S</i><sub><i>I</i>,1</sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -663,18 +794,24 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup> / (mU / L)</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup> / (mU
+                  / L)
+                </td>
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={SI1_step} className="w-[6.5ch] px-1 text-right" name="SI1 mean"
-                  onChange={(e) => setSI1_mean(Number(e.target.value))} value={SI1_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setSI1_mean(Number(e.target.value))} value={SI1_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={SI1_step} className="w-[6.5ch] px-1 text-right" name="SI1 std dev"
-                  onChange={(e) => setSI1_stdDev(Number(e.target.value))} value={SI1_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setSI1_stdDev(Number(e.target.value))} value={SI1_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setSI1_hover(true)}
-                    onMouseLeave={()=>setSI1_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setSI1_hover(true)}
+                    onMouseLeave={() => setSI1_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {SI1_hover ? SI1_description : <b>?</b>}
                   </div>
@@ -682,7 +819,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>S</i><sub><i>I</i>,2</sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>S</i><sub><i>I</i>,2</sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -695,18 +833,24 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup> / (mU / L)</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup> / (mU
+                  / L)
+                </td>
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={SI2_step} className="w-[6.5ch] px-1 text-right" name="SI2 mean"
-                  onChange={(e) => setSI2_mean(Number(e.target.value))} value={SI2_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setSI2_mean(Number(e.target.value))} value={SI2_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={SI2_step} className="w-[6.5ch] px-1 text-right" name="SI2 std dev"
-                  onChange={(e) => setSI2_stdDev(Number(e.target.value))} value={SI2_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setSI2_stdDev(Number(e.target.value))} value={SI2_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setSI2_hover(true)}
-                    onMouseLeave={()=>setSI2_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setSI2_hover(true)}
+                    onMouseLeave={() => setSI2_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {SI2_hover ? SI2_description : <b>?</b>}
                   </div>
@@ -714,7 +858,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>S</i><sub><i>I</i>,3</sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>S</i><sub><i>I</i>,3</sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -728,17 +873,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{SI3_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={SI3_step} className="w-[6.5ch] px-1 text-right" name="SI3 mean"
-                  onChange={(e) => setSI3_mean(Number(e.target.value))} value={SI3_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setSI3_mean(Number(e.target.value))} value={SI3_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={SI3_step} className="w-[6.5ch] px-1 text-right" name="SI3 std dev"
-                  onChange={(e) => setSI3_stdDev(Number(e.target.value))} value={SI3_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setSI3_stdDev(Number(e.target.value))} value={SI3_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setSI3_hover(true)}
-                    onMouseLeave={()=>setSI3_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setSI3_hover(true)}
+                    onMouseLeave={() => setSI3_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {SI3_hover ? SI3_description : <b>?</b>}
                   </div>
@@ -746,7 +895,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>k</i><sub><i>e</i></sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>k</i><sub><i>e</i></sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -760,17 +910,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={Ke_step} className="w-[6.5ch] px-1 text-right" name="Ke mean"
-                  onChange={(e) => setKe_mean(Number(e.target.value))} value={Ke_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setKe_mean(Number(e.target.value))} value={Ke_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={Ke_step} className="w-[6.5ch] px-1 text-right" name="Ke std dev"
-                  onChange={(e) => setKe_stdDev(Number(e.target.value))} value={Ke_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setKe_stdDev(Number(e.target.value))} value={Ke_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setKe_hover(true)}
-                    onMouseLeave={()=>setKe_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setKe_hover(true)}
+                    onMouseLeave={() => setKe_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {Ke_hover ? Ke_description : <b>?</b>}
                   </div>
@@ -778,7 +932,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>V</i><sub><i>I</i></sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>V</i><sub><i>I</i></sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -792,17 +947,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{VI_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={VI_step} className="w-[6.5ch] px-1 text-right" name="VI mean"
-                  onChange={(e) => setVI_mean(Number(e.target.value))} value={VI_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setVI_mean(Number(e.target.value))} value={VI_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={VI_step} className="w-[6.5ch] px-1 text-right" name="VI std dev"
-                  onChange={(e) => setVI_stdDev(Number(e.target.value))} value={VI_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setVI_stdDev(Number(e.target.value))} value={VI_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setVI_hover(true)}
-                    onMouseLeave={()=>setVI_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setVI_hover(true)}
+                    onMouseLeave={() => setVI_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {VI_hover ? VI_description : <b>?</b>}
                   </div>
@@ -810,7 +969,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>V</i><sub><i>G</i></sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>V</i><sub><i>G</i></sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -824,17 +984,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{VG_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>exp(<i>V</i><sub><i>G</i></sub>) ~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}>exp(<i>V</i><sub><i>G</i></sub>) ~ <i>N</i> ({<input
                   type="text" step={VG_step} className="w-[6.5ch] px-1 text-right" name="VG mean"
-                  onChange={(e) => setVG_mean(Number(e.target.value))} value={VG_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setVG_mean(Number(e.target.value))} value={VG_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={VG_step} className="w-[6.5ch] px-1 text-right" name="VG std dev"
-                  onChange={(e) => setVG_stdDev(Number(e.target.value))} value={VG_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setVG_stdDev(Number(e.target.value))} value={VG_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setVG_hover(true)}
-                    onMouseLeave={()=>setVG_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setVG_hover(true)}
+                    onMouseLeave={() => setVG_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {VG_hover ? VG_description : <b>?</b>}
                   </div>
@@ -842,7 +1006,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>&tau;</i><sub><i>I</i></sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>&tau;</i><sub><i>I</i></sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -856,17 +1021,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{TauI_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}><sup>1</sup> &frasl; <sub><i>&tau;</i><sub><i>I</i></sub></sub> ~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>
+                  <sup>1</sup> &frasl; <sub><i>&tau;</i><sub><i>I</i></sub></sub> ~ <i>N</i> ({<input
                   type="text" step={TauI_step} className="w-[6.5ch] px-1 text-right" name="TauI mean"
-                  onChange={(e) => setTauI_mean(Number(e.target.value))} value={TauI_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setTauI_mean(Number(e.target.value))} value={TauI_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={TauI_step} className="w-[6.5ch] px-1 text-right" name="TauI std dev"
-                  onChange={(e) => setTauI_stdDev(Number(e.target.value))} value={TauI_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setTauI_stdDev(Number(e.target.value))} value={TauI_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setTauI_hover(true)}
-                    onMouseLeave={()=>setTauI_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setTauI_hover(true)}
+                    onMouseLeave={() => setTauI_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {TauI_hover ? TauI_description : <b>?</b>}
                   </div>
@@ -874,7 +1043,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>&tau;</i><sub><i>G</i></sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>&tau;</i><sub><i>G</i></sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -888,17 +1058,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{TauG_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}><sup>1</sup> &frasl; <sub>ln(<i>&tau;</i><sub><i>G</i></sub>)</sub> ~ <i>N</i> ({<input
+                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>
+                  <sup>1</sup> &frasl; <sub>ln(<i>&tau;</i><sub><i>G</i></sub>)</sub> ~ <i>N</i> ({<input
                   type="text" step={TauG_step} className="w-[6.5ch] px-1 text-right" name="TauG mean"
-                  onChange={(e) => setTauG_mean(Number(e.target.value))} value={TauG_mean} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setTauG_mean(Number(e.target.value))} value={TauG_mean}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={TauG_step} className="w-[6.5ch] px-1 text-right" name="TauG std dev"
-                  onChange={(e) => setTauG_stdDev(Number(e.target.value))} value={TauG_stdDev} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setTauG_stdDev(Number(e.target.value))} value={TauG_stdDev}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setTauG_hover(true)}
-                    onMouseLeave={()=>setTauG_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setTauG_hover(true)}
+                    onMouseLeave={() => setTauG_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {TauG_hover ? TauG_description : <b>?</b>}
                   </div>
@@ -906,7 +1080,8 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}><i>A</i><sub><i>G</i></sub></td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>
+                  <i>A</i><sub><i>G</i></sub></td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                   <input
                     type="number"
@@ -920,17 +1095,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{AG_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}> ~ <i>U</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}> ~ <i>U</i> ({<input
                   type="text" step={AG_step} className="w-[3.5ch] px-1 text-right" name="AG min"
-                  onChange={(e) => setAG_min(Number(e.target.value))} value={AG_min} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setAG_min(Number(e.target.value))} value={AG_min}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={AG_step} className="w-[3.5ch] px-1 text-right" name="AG max"
-                  onChange={(e) => setAG_max(Number(e.target.value))} value={AG_max} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setAG_max(Number(e.target.value))} value={AG_max}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setAG_hover(true)}
-                    onMouseLeave={()=>setAG_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setAG_hover(true)}
+                    onMouseLeave={() => setAG_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {AG_hover ? AG_description : <b>?</b>}
                   </div>
@@ -952,17 +1131,21 @@ const Home: NextPage = () => {
                   />
                 </td>
                 <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{BW_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}> ~ <i>U</i> ({<input
+                <td className="border border px-4 py-2 text-right"
+                    style={{borderColor: "var(--primary)"}}> ~ <i>U</i> ({<input
                   type="text" step={BW_step} className="w-[3.5ch] px-1 text-right" name="BW min"
-                  onChange={(e) => setBW_min(Number(e.target.value))} value={BW_min} data-np-intersection-state="observed"/>}, {<input
+                  onChange={(e) => setBW_min(Number(e.target.value))} value={BW_min}
+                  data-np-intersection-state="observed"/>}, {<input
                   type="text" step={BW_step} className="w-[3.5ch] px-1 text-right" name="BW max"
-                  onChange={(e) => setBW_max(Number(e.target.value))} value={BW_max} data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  onChange={(e) => setBW_max(Number(e.target.value))} value={BW_max}
+                  data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <div
-                    onMouseEnter={()=>setBW_hover(true)}
-                    onMouseLeave={()=>setBW_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"  style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+                    onMouseEnter={() => setBW_hover(true)}
+                    onMouseLeave={() => setBW_hover(false)}
+                    className="cursor-help relative overflow-visible text-lg"
+                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {BW_hover ? BW_description : <b>?</b>}
                   </div>
@@ -975,13 +1158,11 @@ const Home: NextPage = () => {
         </div>
 
 
-
-
-
         <div className="mt-8 overflow-visible relative">
           <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Carbohydrate Intake</h2>
-          <div className="overflow-x-auto overflow-visible relative" >
-            <table className="w-2/3 mx-auto border-collapse border overflow-visible relative" style={{borderColor: "var(--primary)"}}>
+          <div className="overflow-x-auto overflow-visible relative">
+            <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
+                   style={{borderColor: "var(--primary)"}}>
               <thead>
               <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
                 <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Meal</th>
@@ -991,34 +1172,33 @@ const Home: NextPage = () => {
               </thead>
               <tbody className="text-center">
 
-              {carbs.map((meal, time, value) => (
-              <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>{meal.meal}</td>
-                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{meal.time}</td>
-                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
-                  <input
-                    type="number"
-                    value={
-                      meal.meal === "Breakfast" ? breakfastValue :
-                      meal.meal === "Lunch" ? lunchValue :
-                      meal.meal === "Snack" ? snackValue :
-                      meal.meal === "Dinner" ? dinnerValue : 0
-                    }
-                    onChange={(e) => setMeal(meal.meal, Number(e.target.value))}
-                    min={0}
-                    max={150}
-                    step={carbs_step}
-                    data-np-intersection-state="observed"
-                    className="w-[5.7ch] px-1 text-right"
-                  /> g
-                </td>
-              </tr>
+              {carbs.map((meal) => (
+                <tr>
+                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>{meal.meal}</td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{meal.hour}</td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                    <input
+                      type="number"
+                      value={
+                        meal.meal === "Breakfast" ? breakfastValue :
+                          meal.meal === "Lunch" ? lunchValue :
+                            meal.meal === "Snack" ? snackValue :
+                              meal.meal === "Dinner" ? dinnerValue : 0
+                      }
+                      onChange={(e) => setMeal(meal.meal, Number(e.target.value))}
+                      min={0}
+                      max={150}
+                      step={carbs_step}
+                      data-np-intersection-state="observed"
+                      className="w-[5.7ch] px-1 text-right"
+                    /> g
+                  </td>
+                </tr>
               ))}
               </tbody>
             </table>
           </div>
         </div>
-
 
 
         <button
@@ -1059,7 +1239,8 @@ const Home: NextPage = () => {
         )*/}
       </div>
       <footer
-        className="fixed bottom-4 right-4 text-sm text-gray-500 hover:text-gray-700 cursor-pointer" style={{borderColor: "var(--primary)", color: "var(--primary)"}}
+        className="fixed bottom-4 right-4 text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+        style={{borderColor: "var(--primary)", color: "var(--primary)"}}
         onClick={() => window.open('https://github.com/federicomarra', '_blank', 'noopener,noreferrer')}
       >
         developed by Federico Marra
