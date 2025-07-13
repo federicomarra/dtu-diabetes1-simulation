@@ -184,6 +184,42 @@ const Home: NextPage = () => {
   const [BW_hover, setBW_hover] = useState(false); // BW hover state for tooltip
 
 
+  // MEAL PARAMETERS
+  const carbs_step = 5; // Step size for carbohydrate intake in grams
+  const breakfast_mean = 40; // Mean carbohydrate intake for breakfast in grams
+  const breakfast_stdDev = 10; // Standard deviation for breakfast carbohydrate intake in grams
+  const [breakfastValue, setBreakfastValue] = useState(generateValueGivenMeanAndStdDev(breakfast_mean, breakfast_stdDev, carbs_step));
+  const [lunchValue, setLunchValue] = useState(generateValueGivenMeanAndStdDev(70, 15, carbs_step));
+  const [snackValue, setSnackValue] = useState(generateValueGivenMeanAndStdDev(10, 35, carbs_step, "uniform"));
+  const [dinnerValue, setDinnerValue] = useState(generateValueGivenMeanAndStdDev(50, 10, carbs_step));
+
+  const carbs = [
+    {
+      "meal": "Breakfast",
+      "time": "08:00",
+      "value": breakfastValue
+    },
+    {
+      "meal": "Lunch",
+      "time": "12:00",
+      "value": lunchValue
+    },
+    {
+      "meal": "Snack",
+      "time": "16:00",
+      "value": snackValue
+    },
+    {
+      "meal": "Dinner",
+      "time": "20:00",
+      "value": dinnerValue
+    }
+  ];
+
+
+  
+
+
   const [unitMgDl, setUnitMgDl] = useState<boolean>(true);
 
   const initMinGlyc = () => unitMgDl ? 50 : 2.8;
@@ -257,6 +293,25 @@ const Home: NextPage = () => {
       }
   }
 
+  const setMeal = (meal: string, value: number) => {
+    switch (meal) {
+      case "Breakfast":
+        setBreakfastValue(value);
+        break;
+      case "Lunch":
+        setLunchValue(value);
+        break;
+      case "Snack":
+        setSnackValue(value);
+        break;
+      case "Dinner":
+        setDinnerValue(value);
+        break;
+      default:
+        console.warn("Unknown meal type:", meal);
+    }
+  }
+
   const repeatArray = (arr: number[]) => {
     const repeatedArray = [];
     for (let i = 0; i < days; i++) {
@@ -266,6 +321,7 @@ const Home: NextPage = () => {
   }
 
   const handleExecute = () => {
+    console.log(carbs)
     /*
     // @ts-ignore
     const model = new HovorkaModel({});
@@ -370,21 +426,7 @@ const Home: NextPage = () => {
 
         <div className="flex flex-row" id="start-glycemia-div">
           <label className="block text-lg font-medium mb-2">
-            Blood sugar unit: {/*<input
-            type="number"
-            id="glycemia"
-            name="glycemia"
-            min={minGlycemia}
-            max={maxGlycemia}
-            step={unitMgDl ? "1" : "0.1"}
-            value={startGlycemia}
-            onChange={(e) => setStartGlycemia(Number(e.target.value))}
-            data-np-intersection-state="observed"
-            style={{
-              color: "var(--primary)",
-              width: "45px",
-            }}
-          />*/}
+            Blood sugar unit:
             <select
               id="unit"
               name="unit"
@@ -398,22 +440,6 @@ const Home: NextPage = () => {
             </select>
           </label>
         </div>
-        {/*<input
-          type="range"
-          id="glycemia"
-          name="glycemia"
-          min={unitMgDl ? "50" : "2.8"}
-          max={unitMgDl ? "300" : "16.7"}
-          step={unitMgDl ? "1" : "0.1"}
-          value={startGlycemia}
-          onChange={(e) => setStartGlycemia(Number(e.target.value))}
-          className="w-full"
-          data-np-intersection-state="observed"
-          style={{
-            color: "var(--primary)",
-            //width: "50px",
-          }}
-        />*/}
 
         <div className="mt-8 overflow-visible relative">
           <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Patient Parameters</h2>
@@ -460,17 +486,6 @@ const Home: NextPage = () => {
                   >
                     {EGP0_hover ? EGP0_description : <b>?</b>}
                   </div>
-                  {/*
-                  <div className="inline-block group">
-                    <span className="font-bold cursor-help relative overflow-visible text-lg" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</span>
-                    <div className="absolute z-50 p-2 bg-gray-800 text-white rounded shadow-lg text-sm text-left
-                    left-1/2 transform -translate-x-1/2 bottom-full mb-2
-                    w-max max-w-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                    whitespace-pre-wrap break-words">
-                      {EGP0_description}
-                    </div>
-                  </div>
-                  */}
                 </td>
               </tr>
 
@@ -962,12 +977,47 @@ const Home: NextPage = () => {
 
 
 
+
+        <div className="mt-8 overflow-visible relative">
+          <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Carbohydrate Intake</h2>
+          <div className="overflow-x-auto overflow-visible relative" >
+            <table className="w-2/3 mx-auto border-collapse border overflow-visible relative" style={{borderColor: "var(--primary)"}}>
+              <thead>
+              <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Meal</th>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Time</th>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value</th>
+              </tr>
+              </thead>
+              <tbody className="text-center">
+
+              {carbs.map((meal, time, value) => (
+              <tr>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>{meal.meal}</td>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{meal.time}</td>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                  <input
+                    type="number"
+                    value={
+                      meal.meal === "Breakfast" ? breakfastValue :
+                      meal.meal === "Lunch" ? lunchValue :
+                      meal.meal === "Snack" ? snackValue :
+                      meal.meal === "Dinner" ? dinnerValue : 0
+                    }
+                    onChange={(e) => setMeal(meal.meal, Number(e.target.value))}
+                    min={0}
+                    max={150}
+                    step={carbs_step}
+                    data-np-intersection-state="observed"
+                    className="w-[5.7ch] px-1 text-right"
+                  /> g
+                </td>
+              </tr>
+              ))}
               </tbody>
             </table>
           </div>
         </div>
-
-        <h2 className="text-2xl font-semibold mt-8 mb-4">Carbohydrate Intake</h2>
 
 
 
