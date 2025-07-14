@@ -45,6 +45,13 @@ const Home: NextPage = () => {
   const initTime = (time_length: number) => Array.from({length: time_length}, (_, i) => i)
   const [time, setTime] = useState<number[]>(initTime(timeLength));
 
+  const possibleModels = ["Hovorka"]; // Possible models
+  const defaultModel = possibleModels[0]; // Default model
+  const [modelName, setModelName] = useState<string>(defaultModel); // Initialize the model
+  const possibleControllers = ["P"]//, "PI", "PID"]; // Possible controllers
+  const defaultController = possibleControllers[0]; // Default controller
+  const [controllerName, setControllerName] = useState<string>(defaultController); // Initialize the controller
+
   // Glycemia unit: false for mmol/L, true for mg/dL
   const [unitMgDl, setUnitMgDl] = useState<boolean>(false); // false for mmol/L, true for mg/dL
   const initMinGlyc = () => unitMgDl ? 50 : 2.8;
@@ -276,6 +283,63 @@ const Home: NextPage = () => {
     return repeatArray(array_to_repeat, days_to_repeat); // Repeat the array for the specified number of days
   }
 
+  // INSULIN PARAMETERS
+  const ins_step = 0.05; // Step size for insulin values in U/h
+  const basal_stdDev = ins_step * 2; // Standard deviation for basal insulin values
+  const basal_hour_starts = [0, 8, 12, 20]; // Basal insulin times in hours for breakfast, lunch, snack, and dinner
+  const basal_time = (i: number, time_step: number) => basal_hour_starts[i] * 60 / time_step; // Convert meal hours to minutes based on timeStep
+  const [basal00, setBasal00] = useState(generateValueGivenMeanAndStdDev(1.5, basal_stdDev, ins_step));
+  const [basal08, setBasal08] = useState(generateValueGivenMeanAndStdDev(1.3, 0.4, ins_step));
+  const [basal12, setBasal12] = useState(generateValueGivenMeanAndStdDev(1.9, 0.1, ins_step));
+  const [basal20, setBasal20] = useState(generateValueGivenMeanAndStdDev(1.7, 0.2, ins_step));
+  let basal = [
+    {
+      "hour_start": "0" + basal_hour_starts[0] +  ":00",
+      "hour_end": String(basal_hour_starts[1] - 1) + ":59",
+      "time_start": basal_time(0, timeStep),
+      "time_end": basal_time(1, timeStep) - 1,
+      "value": basal00
+    },
+    {
+      "hour_start": "0" + basal_hour_starts[1] + ":00",
+      "hour_end": String(basal_hour_starts[2] - 1) + ":59",
+      "time_start": basal_time(1, timeStep),
+      "time_end": basal_time(2, timeStep) - 1,
+      "value": basal08
+    },
+    {
+      "hour_start": basal_hour_starts[2] + ":00",
+      "hour_end": String(basal_hour_starts[3] - 1) + ":59",
+      "time_start": basal_time(2, timeStep),
+      "time_end": basal_time(3, timeStep) - 1,
+      "value": basal12
+    },
+    {
+      "hour_start": basal_hour_starts[3] + ":00",
+      "hour_end": "24:00",
+      "time_start": basal_time(3, timeStep),
+      "time_end": timeLength, // Last minute of the day
+      "value": basal20
+    }
+  ];
+
+  const getUIns = (days_to_repeat: number, time_step: number) => {
+    const length_one_day = 24 * 60 / time_step + 1; // Length of one day in minutes based on timeStep
+    //console.log("Length of one day in minutes:", length_one_day);
+    const array_to_repeat = Array.from({length: length_one_day}, (_, i) => {
+      for (const slot of basal) {
+        if (slot.time_start <= i && i <= slot.time_end) {
+          return slot.value / (60 / timeStep); // Return the basal intake value for that hour
+        }
+      }
+      return 0; // No basal intake at other times
+    })
+    //console.log("length of array to repeat:", array_to_repeat.length, "for", days_to_repeat, "days");
+    //console.log("array to repeat:", array_to_repeat);
+    return repeatArray(array_to_repeat, days_to_repeat); // Repeat the array for the specified number of days
+  }
+
+
   const uIns_days = (days: number) => Array.from({length: 24 * days}, (_, i) => i % 24 < 7 ? 1.5 : i % 24 < 12 ? 1.3 : i % 24 < 20 ? 1.4 : 0);
   const [uIns, setUIns] = useState<number[]>(uIns_days(days));
   const [result, setResult] = useState<number[]>([]);
@@ -285,6 +349,8 @@ const Home: NextPage = () => {
       setDays(new_value);
       setTimeLength(timeLength_days(new_value, timeStep));
       setTime(initTime(timeLength_days(new_value, timeStep)));
+
+      console.log("Updated days or timeStep", name, "=", new_value);
     } else if (name == "timeStep") {
       setTimeStep(new_value);
 
@@ -294,11 +360,19 @@ const Home: NextPage = () => {
       for (let i = 0; i < carbs.length; i++) {
         carbs[i].time = meal_time(i, new_value);
       }
+      for (let i = 0; i < basal.length; i++) {
+        basal[i].time_start = basal_time(i, new_value);
+      }
 
-      setUIns(uIns_days(days));
+
+
+      //setUIns(uIns_days(days));
       setResult([]);
-      console.log("Updated days or timeStep", name, "=", new_value);
+
       console.log("Updated carbs", carbs);
+
+      console.log("Updated basal", basal);
+
     } else {
       switch (name) {
         case "EGP0":
@@ -354,6 +428,7 @@ const Home: NextPage = () => {
           console.warn("Unknown parameter type:", name);
       }
     }
+    console.log("Updated parameter", name, "=", new_value);
   }
 
   const setMeal = (mealName: string, value: number) => {
@@ -379,6 +454,30 @@ const Home: NextPage = () => {
     }
   }
 
+  const setBasal = (hour_start: string, value: number) => {
+    for (let i = 0; i < basal.length; i++) {
+      if (basal[i].hour_start === hour_start) {
+        basal[i].value = value;
+        switch (i) {
+          case 0:
+            setBasal00(value);
+            break;
+          case 1:
+            setBasal08(value);
+            break;
+          case 2:
+            setBasal12(value);
+            break;
+          case 3:
+            setBasal20(value);
+            break;
+          default:
+            console.warn("Unknown basal hour:", hour_start);
+        }
+        break;
+      }
+    }
+  }
 
   const handleExecute = () => {
 
@@ -407,13 +506,17 @@ const Home: NextPage = () => {
 
     const dCho = getDCho(days, timeStep);
 
+    const uIns = getUIns(days, timeStep);
 
 
-    console.log("Parameters:", params);
-    console.log("Time step = ", timeStep, "minutes");
-    console.log("Time length=", timeLength, ", time.length=", time.length);
+    //console.log("Parameters:", params);
+    //console.log("Time step = ", timeStep, "minutes");
+    //console.log("Time length=", timeLength, ", time.length=", time.length);
     //console.log("Carbs = ", carbs)
     //console.log("dCho=", dCho);
+
+    //console.log("Basal insulin:", basal);
+    //console.log("uIns:", uIns);
 
     /*
     // @ts-ignore
@@ -560,6 +663,45 @@ const Home: NextPage = () => {
                   </select>
                 </td>
               </tr>
+
+              <tr>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Diabates Model</td>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                  <select
+                    id="model"
+                    name="model"
+                    onChange={(e) => {
+                      setModelName(String(e.target.value));
+                    }}
+                    data-np-intersection-state="observed"
+                    defaultValue={defaultModel}
+                  >
+                    {possibleModels.map((model) => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+
+              <tr>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller</td>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                  <select
+                    id="model"
+                    name="model"
+                    onChange={(e) => {
+                      setControllerName(String(e.target.value));
+                    }}
+                    data-np-intersection-state="observed"
+                    defaultValue={defaultController}
+                  >
+                    {possibleControllers.map((controller) => (
+                      <option key={controller} value={controller}>{controller}</option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+
               </tbody>
             </table>
           </div>
@@ -1192,7 +1334,7 @@ const Home: NextPage = () => {
               <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
                 <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Meal</th>
                 <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Time</th>
-                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value</th>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value [g]</th>
               </tr>
               </thead>
               <tbody className="text-center">
@@ -1225,21 +1367,64 @@ const Home: NextPage = () => {
           </div>
         </div>
 
+        <div className="mt-8 overflow-visible relative">
+          <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Insulin Intake</h2>
+          <div className="overflow-x-auto overflow-visible relative">
+            <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
+                   style={{borderColor: "var(--primary)"}}>
+              <thead>
+              <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Start Time</th>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>End Time</th>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value [U/h]</th>
+              </tr>
+              </thead>
+              <tbody className="text-center">
 
-        <button
-          onClick={handleExecute}
-          className="mt-4 px-4 py-2 text-white text-base font-extrabold rounded w-full"
-          style={{
-            backgroundColor: "var(--quaternary)",
-            borderRadius: "5px",
-            cursor: "pointer",
-            fontSize: "16px",
-          }}
-        >
-          Execute
-        </button>
+              {basal.map((slot, index) => (
+                <tr key={index}>
+                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>{slot.hour_start}</td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{slot.hour_end}</td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                    <input
+                      type="number"
+                      value={
+                        slot.hour_start === "0" + basal_hour_starts[0] + ":00" ? basal00 :
+                          slot.hour_start === "0" + basal_hour_starts[1] + ":00" ? basal08 :
+                            slot.hour_start === basal_hour_starts[2] + ":00" ? basal12 :
+                              slot.hour_start === basal_hour_starts[3] + ":00" ? basal20 : 0
+                      }
+                      onChange={(e) => setBasal(slot.hour_start, Number(e.target.value))}
+                      min={0}
+                      max={2.5}
+                      step={ins_step}
+                      data-np-intersection-state="observed"
+                      className="w-[6.7ch] px-1 text-left"
+                    /> U/h
+                  </td>
+                </tr>
+              ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="mt-8 overflow-visible relative">
+          <button
+            onClick={handleExecute}
+            className="mt-4 px-4 py-2.5 text-base font-extrabold rounded-full w-full cursor-pointer"
+            style={{
+              backgroundColor: "var(--primary)",
+              color: "var(--secondary)",
+              fontSize: "22px",
+            }}
+          >
+            Simulate
+          </button>
+        </div>
+
         {result.length > 0 && (
-          <div>
+          <div className="mt-8 overflow-visible relative">
             <h2 className="text-2xl font-semibold mt-8 mb-4">Simulation result</h2>
             <LineChart
               className="mt-4"
@@ -1263,8 +1448,11 @@ const Home: NextPage = () => {
           </div>
         )*/}
       </div>
+
+      <div className="mt-8 overflow-visible relative"></div>
+
       <footer
-        className="fixed bottom-4 right-4 text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+        className="absolute mt-8 bottom-4 right-4 text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
         style={{borderColor: "var(--primary)", color: "var(--primary)"}}
         onClick={() => window.open('https://github.com/federicomarra', '_blank', 'noopener,noreferrer')}
       >
