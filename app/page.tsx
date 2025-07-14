@@ -34,15 +34,16 @@ const Home: NextPage = () => {
 
   // SIMULATION PARAMETERS
   // Number of days for the simulation
-  const defaultDays = 1;
+  const possibleDays = [1, 2, 3, 4, 5, 6, 7, 14]; // Possible days for the simulation
+  const defaultDays = possibleDays[0]; // Default number of days for the simulation
   const [days, setDays] = useState<number>(defaultDays);
-  const defaultTimeStep = 1; // Default time step in minutes
   const possibleTimeSteps = [1, 5, 10, 30, 60]; // Possible time steps in minutes
+  const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 1]; // Default time step in minutes
   const [timeStep, setTimeStep] = useState<number>(defaultTimeStep); // Time step in minutes
   const timeLength_days = (days: number, timeStep: number) => days * 24 * 60 / timeStep + 1; // Total time length in minutes, +1 to include the 24:00
   const [timeLength, setTimeLength] = useState<number>(timeLength_days(days, timeStep)); // Total time length in minutes if timeStep is 1 minute
-  const initTime = (days: number) => Array.from({length: timeLength}, (_, i) => i)
-  const [time, setTime] = useState<number[]>(initTime(days));
+  const initTime = (time_length: number) => Array.from({length: time_length}, (_, i) => i)
+  const [time, setTime] = useState<number[]>(initTime(timeLength));
 
   // Glycemia unit: false for mmol/L, true for mg/dL
   const [unitMgDl, setUnitMgDl] = useState<boolean>(false); // false for mmol/L, true for mg/dL
@@ -51,12 +52,13 @@ const Home: NextPage = () => {
   const [minGlycemia, setMinGlycemia] = useState<number>(initMinGlyc());
   const [maxGlycemia, setMaxGlycemia] = useState<number>(initMaxGlyc());
 
-  const repeatArray = (arr: number[]) => {
+  const repeatArray = (arr: number[], days_to_repeat: number) => {
     const repeatedArray = [];
-    for (let i = 0; i < days; i++) {
-      repeatedArray.push(...arr.slice(0, arr.length - 2));
+    for (let i = 0; i < days_to_repeat; i++) {
+      repeatedArray.push(...arr.slice(0, arr.length - 1));
     }
     repeatedArray.push(arr[arr.length - 1]); // Ensure the last element is included
+    //console.log("Array repeated for", days, "days:", repeatedArray);
     return repeatedArray;
   }
 
@@ -222,96 +224,81 @@ const Home: NextPage = () => {
   const BW_description = "Body weight of the patient, which influences insulin sensitivity and glucose metabolism.";
   const [BW_hover, setBW_hover] = useState(false); // BW hover state for tooltip
 
-  const params = {
-    "days": days,
-    "time": time,
-    "EGP0": EGP0_value,
-    "F01": F01_value,
-    "K12": K12_value,
-    "Ka1": Ka1_value,
-    "Ka2": Ka2_value,
-    "Ka3": Ka3_value,
-    "SI1": SI1_value,
-    "SI2": SI2_value,
-    "SI3": SI3_value,
-    "Ke": Ke_value,
-    "VI": VI_value,
-    "VG": VG_value,
-    "TauI": TauI_value,
-    "TauG": TauG_value,
-    "AG": AG_value,
-    "BW": BW_value
-  };
-
 
   // MEAL PARAMETERS
   const carbs_step = 5; // Step size for carbohydrate intake in grams
+  const carbs_hours = [8, 12, 16, 20]; // Meal times in hours for breakfast, lunch, snack, and dinner
+  const meal_time = (i: number, time_step: number) => carbs_hours[i] * 60 / time_step; // Convert meal hours to minutes based on timeStep
   const [breakfastValue, setBreakfastValue] = useState(generateValueGivenMeanAndStdDev(40, 10, carbs_step));
   const [lunchValue, setLunchValue] = useState(generateValueGivenMeanAndStdDev(70, 15, carbs_step));
   const [snackValue, setSnackValue] = useState(generateValueGivenMeanAndStdDev(10, 35, carbs_step, "uniform"));
   const [dinnerValue, setDinnerValue] = useState(generateValueGivenMeanAndStdDev(50, 10, carbs_step));
-
-  const carbs = [
+  let carbs = [
     {
-      "meal": "Breakfast",
-      "hour": "08:00",
-      "time": 8 * 60 / timeStep, // 8:00 in minutes
+      "mealName": "Breakfast",
+      "hour": "0" + carbs_hours[0] +  ":00",
+      "time": meal_time(0, timeStep),
       "value": breakfastValue
     },
     {
-      "meal": "Lunch",
-      "hour": "12:00",
-      "time": 12 * 60 / timeStep, // 12:00 in minutes
+      "mealName": "Lunch",
+      "hour": carbs_hours[1] + ":00",
+      "time": meal_time(1, timeStep),
       "value": lunchValue
     },
     {
-      "meal": "Snack",
-      "hour": "16:00",
-      "time": 16 * 60 / timeStep, // 16:00 in minutes
+      "mealName": "Snack",
+      "hour": carbs_hours[2] + ":00",
+      "time": meal_time(2, timeStep),
       "value": snackValue
     },
     {
-      "meal": "Dinner",
-      "hour": "20:00",
-      "time": 20 * 60 / timeStep, // 20:00 in minutes
+      "mealName": "Dinner",
+      "hour": carbs_hours[3] + ":00",
+      "time": meal_time(3, timeStep),
       "value": dinnerValue
     }
   ];
 
-  const dCho_days = (days: number) => {
-    const array_to_repeat = Array.from({length: (timeLength - 1) / days}, (_, i) => {
+  const getDCho = (days_to_repeat: number, time_step: number) => {
+    const length_one_day = 24 * 60 / time_step + 1; // Length of one day in minutes based on timeStep
+    //console.log("Length of one day in minutes:", length_one_day);
+    const array_to_repeat = Array.from({length: length_one_day}, (_, i) => {
       for (const meal of carbs) {
         if (i === meal.time) {
-          console.log("HELLO", meal.time)
           return meal.value; // Return the carbohydrate intake value for the meal at that hour
         }
       }
       return 0; // No carbohydrate intake at other times
     })
-    return repeatArray(array_to_repeat);
+    //console.log("length of array to repeat:", array_to_repeat.length, "for", days_to_repeat, "days");
+    //console.log("array to repeat:", array_to_repeat);
+    return repeatArray(array_to_repeat, days_to_repeat); // Repeat the array for the specified number of days
   }
-
-  const [dCho, setDCho] = useState<number[]>(dCho_days(days));
-
 
   const uIns_days = (days: number) => Array.from({length: 24 * days}, (_, i) => i % 24 < 7 ? 1.5 : i % 24 < 12 ? 1.3 : i % 24 < 20 ? 1.4 : 0);
   const [uIns, setUIns] = useState<number[]>(uIns_days(days));
   const [result, setResult] = useState<number[]>([]);
 
   const setParams = (new_value: number, name: string) => {
-    if (name == "days") {
+    if (name == "days"){
       setDays(new_value);
-      setTime(initTime(new_value));
-      setDCho(dCho_days(new_value));
-      setUIns(uIns_days(new_value));
-      setResult([]);
+      setTimeLength(timeLength_days(new_value, timeStep));
+      setTime(initTime(timeLength_days(new_value, timeStep)));
     } else if (name == "timeStep") {
       setTimeStep(new_value);
+
       setTimeLength(timeLength_days(days, new_value));
-      setTime(initTime(days));
-      setDCho(dCho_days(days));
+      setTime(initTime(timeLength_days(days, new_value)));
+
+      for (let i = 0; i < carbs.length; i++) {
+        carbs[i].time = meal_time(i, new_value);
+      }
+
       setUIns(uIns_days(days));
       setResult([]);
+      console.log("Updated days or timeStep", name, "=", new_value);
+      console.log("Updated carbs", carbs);
     } else {
       switch (name) {
         case "EGP0":
@@ -369,31 +356,64 @@ const Home: NextPage = () => {
     }
   }
 
-  const setMeal = (meal: string, value: number) => {
-    switch (meal) {
+  const setMeal = (mealName: string, value: number) => {
+    switch (mealName) {
       case "Breakfast":
+        carbs[0].value = value;
         setBreakfastValue(value);
         break;
       case "Lunch":
+        carbs[1].value = value;
         setLunchValue(value);
         break;
       case "Snack":
+        carbs[2].value = value;
         setSnackValue(value);
         break;
       case "Dinner":
+        carbs[3].value = value;
         setDinnerValue(value);
         break;
       default:
-        console.warn("Unknown meal type:", meal);
+        console.warn("Unknown meal type:", mealName);
     }
   }
 
 
   const handleExecute = () => {
-    console.log("Parameters:", params);
-    console.log("Carbs = ", carbs)
 
-    console.log("dCho=", dCho);
+    const params = {  // Parameters for the Hovorka model multiplied by timeStep or divided by timeStep as needed
+      "days": days,
+      "timeStep": timeStep,
+      "time": time,
+      "unitMgDl": unitMgDl,
+      "EGP0": EGP0_value / timeStep,
+      "F01": F01_value * timeStep,
+      "K12": K12_value / timeStep,
+      "Ka1": Ka1_value / timeStep,
+      "Ka2": Ka2_value / timeStep,
+      "Ka3": Ka3_value / timeStep,
+      "SI1": SI1_value / timeStep,
+      "SI2": SI2_value / timeStep,
+      "SI3": SI3_value,
+      "Ke": Ke_value / timeStep,
+      "VI": VI_value,
+      "VG": VG_value,
+      "TauI": TauI_value * timeStep,
+      "TauG": TauG_value * timeStep,
+      "AG": AG_value,
+      "BW": BW_value
+    };
+
+    const dCho = getDCho(days, timeStep);
+
+
+
+    console.log("Parameters:", params);
+    console.log("Time step = ", timeStep, "minutes");
+    console.log("Time length=", timeLength, ", time.length=", time.length);
+    //console.log("Carbs = ", carbs)
+    //console.log("dCho=", dCho);
 
     /*
     // @ts-ignore
@@ -414,6 +434,8 @@ const Home: NextPage = () => {
     console.log(result);
 
      */
+    /*
+
     // @ts-ignore
     const model = new HovorkaModelODE({});
     const parameters = model.getParameter();
@@ -434,7 +456,7 @@ const Home: NextPage = () => {
     const basicArray = [initMinGlyc(), inputGlyc, initMaxGlyc()];
     //const result = repeatArray(Array(8).fill(0).flatMap(() => basicArray));
     setResult(result);
-
+    */
   }
 
   // @ts-ignore
@@ -484,16 +506,19 @@ const Home: NextPage = () => {
                 <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Days to simulate
                 </td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
-                  <input
-                    type="number"
+                  <select
                     id="days"
                     name="days"
-                    value={days}
-                    onChange={(e) => setParams(Number(e.target.value), "days")}
-                    min="1"
-                    max="7"
+                    onChange={(e) => {
+                      setParams(Number(e.target.value), "days");
+                    }}
                     data-np-intersection-state="observed"
-                  /> day{days > 1 ? "s" : ""}
+                    defaultValue={defaultDays}
+                  >
+                    {possibleDays.map((dayNumber) => (
+                      <option key={dayNumber} value={dayNumber}>{dayNumber}</option>
+                    ))}
+                  </select> day{days != 1 ? "s" : ""}
                 </td>
               </tr>
 
@@ -1172,20 +1197,20 @@ const Home: NextPage = () => {
               </thead>
               <tbody className="text-center">
 
-              {carbs.map((meal) => (
-                <tr>
-                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>{meal.meal}</td>
+              {carbs.map((meal, index) => (
+                <tr key={index}>
+                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>{meal.mealName}</td>
                   <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{meal.hour}</td>
                   <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                     <input
                       type="number"
                       value={
-                        meal.meal === "Breakfast" ? breakfastValue :
-                          meal.meal === "Lunch" ? lunchValue :
-                            meal.meal === "Snack" ? snackValue :
-                              meal.meal === "Dinner" ? dinnerValue : 0
+                        meal.mealName === "Breakfast" ? breakfastValue :
+                          meal.mealName === "Lunch" ? lunchValue :
+                            meal.mealName === "Snack" ? snackValue :
+                              meal.mealName === "Dinner" ? dinnerValue : 0
                       }
-                      onChange={(e) => setMeal(meal.meal, Number(e.target.value))}
+                      onChange={(e) => setMeal(meal.mealName, Number(e.target.value))}
                       min={0}
                       max={150}
                       step={carbs_step}
