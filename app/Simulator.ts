@@ -1,43 +1,50 @@
 import SolverRK4 from "@/app/SolverRK4"
 import { NamedVector, PatientInput } from "@/app/types"
 import { Derivatives } from "@/app/Solver"
-import {HovorkaModelODE} from "@/app/HovorkaModelODE";
+import { HovorkaModelODE } from "@/app/HovorkaModelODE";
 
-export function Simulator(days: number, Gstart: number, patient: PatientInput, model:HovorkaModelODE): [number[], NamedVector[]] {
+export function Simulator(modelName: string, controllerName: string, d: number[], u: number[], simParams: any, patient: any): [number[], NamedVector[]] {
+//export function Simulator(days: number, Gstart: number, patient: PatientInput, model:HovorkaModelODE): [number[], NamedVector[]] {
 
-  let t = 0;
-  const timeStep = 1;
+  // Initialize simulation parameters
+  const timeArray = simParams.time; // Time array in minutes
+  const tInit = timeArray[0]; // Initial time
+  const tStep = simParams.timeStep;
+  const tLength = timeArray.length; // Length of the time array
+  const tEnd = timeArray[tLength - 1];
+
+  let t = tInit; // Simulation time in minutes
+
+  const model = new HovorkaModelODE(tInit);
 
   const state = model.state
 
   const steadyState = model.computeSteady(patient, t);
 
-  const derivatives: Derivatives = (t: Date, x: NamedVector): NamedVector => {
+  const derivatives: Derivatives = (t: number, x: NamedVector): NamedVector => {
     return model.computeDerivatives(t, state, patient);
   }
 
-  const tInit = new Date();
   model.tInit = tInit;
-  const tFinal = new Date(tInit.valueOf() + days * 24 * 60 * 60 * 1000);
   const solver = new SolverRK4();
-  solver.reset(timeStep) // Set the time step to 1 minute
-  const xInit: NamedVector = { glyc: Gstart }; // Initial state vector
+  solver.reset(tStep) // Set the time step to 1 minute
+  const xInit: NamedVector = { }; // Initial state vector
   const stateHistory: NamedVector[] = [];
   const glycemiaHistory: number[] = [];
 
-
-  const tmax: number = Math.floor((tFinal.valueOf() - tInit.valueOf()) / (1000 * 60))
-
-  while (t <= tmax) {
-    const vector_at_t = solver.solve(derivatives, tInit, steadyState, tFinal)
+  while (t <= tEnd) {
+    const vector_at_t = solver.solve(derivatives, tInit, steadyState, tEnd)
     vector_at_t.glyc = model.computeOutput(vector_at_t)
     stateHistory.push(vector_at_t);
     glycemiaHistory.push(model.computeOutput(vector_at_t));
-    t += timeStep;
+    t += 1;
   }
 
-  // Return the glycemia history and state history
-  const ret_arrayay = [glycemiaHistory, stateHistory] as [number[], NamedVector[]];
+  console.log("Glycemia history:", glycemiaHistory);
+  console.log("State history:", stateHistory);
 
-  return ret_arrayay;
+  // Return the glycemia history and state history
+  const ret_array = [glycemiaHistory, stateHistory] as [number[], NamedVector[]];
+
+  return ret_array;
 }

@@ -1,6 +1,6 @@
 import { NamedVector } from '@/app/types'
 
-export type Derivatives = (t: Date, x: NamedVector) => NamedVector
+export type Derivatives = (t: number, x: NamedVector) => NamedVector
 
 export default interface Solver {
 
@@ -22,9 +22,9 @@ export default interface Solver {
    */
   solve(
     derivatives: Derivatives,
-    tInit: Date,
+    tInit: number,
     xInit: NamedVector,
-    tFinal: Date
+    tEnd: number
   ): NamedVector
 
 }

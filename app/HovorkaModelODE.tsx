@@ -4,7 +4,7 @@ import {Derivatives} from "@/app/Solver";
 
 export class HovorkaModelODE extends Component {
 
-  tInit: Date = new Date();
+  tInit: number = 0; // initial time
 
   state: ModelType = {
     D1: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in stomach", history: [] },
@@ -19,8 +19,9 @@ export class HovorkaModelODE extends Component {
     x3: { unit: "1/min", default: 0, value: 0, description: "insulin action on endogenous glucose production (liver)", history: [] },
   };
 
-  constructor() {
+  constructor(tInit: number) {
     super({});
+    this.tInit = tInit;
   }
 
   /**
@@ -45,7 +46,7 @@ export class HovorkaModelODE extends Component {
     const ke = params.ke.value; // insulin elimination from plasma
     const AG = params.AG.value; // carbohydrate (CHO) bioavailability
     const MwG = params.MwG.value; // molecular weight of glucose
-    const tauS = params.tauS.value; // maximum insulin absorption time
+    const tauI = params.tauI.value; // maximum insulin absorption time
 
 
     /** equilibrium blood glucose levels in mmol/l */
@@ -68,9 +69,9 @@ export class HovorkaModelODE extends Component {
     const Ieq = (-Ieq_b - Math.sqrt(Ieq_det)) / (2 * Ieq_a)   // quadratic formula
 
     /** equilibrium insulin absorption in mU/min */
-    const Seq = tauS * (VI * BW) * ke * Ieq
+    const Seq = tauI * (VI * BW) * ke * Ieq
 
-    return Seq / tauS / 1000 * 60
+    return Seq / tauI / 1000 * 60
   }
 
   computeSteady(patient: PatientInput, t: number): NamedVector {
@@ -86,13 +87,13 @@ export class HovorkaModelODE extends Component {
     const SI3 = params.SI3.value; // insulin sensitivity of EGP
     const EGP0 = params.EGP0.value; // endogenous glucose production extrapolated to zero insulin concentration
     const k12 = params.k12.value; // transfer rate from the non-accessible to the accessible compartment
-    const tauS = params.tauS.value; // maximum insulin absorption time
+    const tauI = params.tauI.value; // maximum insulin absorption time
 
     /** equilibrium blood glucose levels in mmol/l */
     const Gpeq = params.Gpeq.value
     const F01eq = F01 * BW * Math.min(Gpeq / 4.5, 1)
-    const Seq = (patient.iir || 0) * tauS * 1000 / 60
-    const Ieq = Seq / (tauS * (VI * BW) * ke)
+    const Seq = (patient.iir || 0) * tauI * 1000 / 60
+    const Ieq = Seq / (tauI * (VI * BW) * ke)
     const x1eq = SI1 * Ieq
     const x2eq = SI2 * Ieq
     const x3eq = SI3 * Ieq
@@ -113,7 +114,7 @@ export class HovorkaModelODE extends Component {
       };
   }
 
-  computeDerivatives(t: Date, state: ModelType, patient: PatientInput): NamedVector {
+  computeDerivatives(t: number, state: ModelType, patient: PatientInput): NamedVector {
     /** extractions of parameters */
     const params =  this.getParameter();
     const pvalues = this.getParameterValues();  //TODO: fix this and decide which parameters to use
@@ -122,7 +123,7 @@ export class HovorkaModelODE extends Component {
 
     const AG = params.AG.value;     // carbohydrate (CHO) bioavailability
     const MwG = params.MwG.value;   // molecular weight of glucose
-    const tauS = params.tauS.value; // maximum insulin absorption time
+    const tauI = params.tauI.value; // maximum insulin absorption time
     const VI = params.VI.value * BW;
     const ke = params.ke.value;
     const ka1 = pvalues["ka1"];
@@ -144,7 +145,7 @@ export class HovorkaModelODE extends Component {
 
     /** extractions of patient model nodes */
     const IIR = (patient.iir || 0) * 1000 / 60;    // insulin infusion rate in mU/min
-    const D = (patient.carbs) ? (1000 / MwG) * (patient.carbs[this.getIndexFromTime(t)] || 0) : 0; // eq:2.10 (meal ingestion in mmol/min)
+    const D = (patient.carbs) ? (1000 / MwG) * (patient.carbs[t] || 0) : 0; // eq:2.10 (meal ingestion in mmol/min)
     const G = state.Q1.value / (VG);          // eq:2.3 (glucose in mmol/l)
 
     /** extractions of state model nodes */
@@ -169,9 +170,9 @@ export class HovorkaModelODE extends Component {
     const UG = (1 / tauD) * D2;                                           // eq:2.9
 
     /** insulin absorption */
-    const dS1 = IIR - ((1 / tauS) * S1);                                  // eq:2.11a
-    const dS2 = (1 / tauS) * (S1 - S2);                                   // eq:2.11b
-    const UI = (1 / tauS) * S2;                                           // eq:2.12
+    const dS1 = IIR - ((1 / tauI) * S1);                                  // eq:2.11a
+    const dS2 = (1 / tauI) * (S1 - S2);                                   // eq:2.11b
+    const UI = (1 / tauI) * S2;                                           // eq:2.12
     const dI = (UI / VI) - (ke * I);                                      // eq:2.6
 
     /** glucose */
@@ -323,6 +324,6 @@ const parameters: ParameterType = {
   "AG": { unit: "1", default: 0.7, value: 0.7, description: "carbohydrate (CHO) bioavailability" },
   "MwG": { unit: "g/mol", default: 180.1577, value: 180.1577, description: "molecular weight of glucose" },
   "BW": { unit: "kg", default: 65, value: 65, description: "body weight in kg" },
-  "tauS": { unit: "min", default: 55, value: 55, description: "time-to-maximum of absorption of subcutaneously injected short-acting insulin"},
+  "tauI": { unit: "min", default: 55, value: 55, description: "time-to-maximum of absorption of subcutaneously injected short-acting insulin"},
   "tauG": { unit: "min", default: 40, value: 40, description: "time-to-maximum of CHO absorption"},
 }

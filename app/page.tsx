@@ -2,41 +2,46 @@
 
 import {NextPage} from "next";
 import {useState} from "react";
-import {HovorkaModel} from "@/app/HovorkaModel";
 import {LineChart} from '@mui/x-charts/LineChart';
-import {width} from "@mui/system";
 import {Simulator} from "@/app/Simulator";
-import {HovorkaModelODE} from "@/app/HovorkaModelODE";
-import {PatientInput} from "@/app/types";
-import {switchCase} from "@babel/types";
 
 const Home: NextPage = () => {
 
-  const generateValueGivenMeanAndStdDev = (mean: number, stdDev: number, step: number, distrName?: string): number => {
+  const debug = true;
+
+  const MwG = 180.1577; // Molar mass of glucose in g/mol
+
+  const roundToDecimal = (value: number, decimals: number): number => {
+    const factor = Math.pow(10, decimals);
+    return Math.round(value * factor) / factor;
+  }
+
+  const generateValueGivenMeanAndStdDev = (mean: number, stdDev: number, step: number, distributionName?: string): number => {
     const u1 = Math.random();
     const u2 = Math.random();
     const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
     let rawValue = z0 * stdDev + mean;
-    if (distrName === "exp") {
+    if (distributionName === "exp") {
       rawValue = Math.log(rawValue);
-    } else if (distrName === "div" && rawValue !== 0) {
+    } else if (distributionName === "div" && rawValue !== 0) {
       rawValue = 1 / rawValue; // Inverse transformation for division
-    } else if (distrName === "divln") {
+    } else if (distributionName === "divln") {
       rawValue = 1 / Math.exp(rawValue); // Inverse transformation for division by log
-    } else if (distrName === "uniform") { // Uniform distribution
+    } else if (distributionName === "uniform") { // Uniform distribution
       rawValue = mean + (stdDev - mean) * Math.random();  // mean==min and stdDev==max
     }
-    return Math.max(step, Math.floor(rawValue / step) * step); // Round to the nearest step
-    //return Math.floor(rawValue / step) * step; // Round to the nearest step
+    const decimals = step.toString().split(".")[1]?.length || 0; // Get the number of decimal places in the step
+    return roundToDecimal(rawValue, decimals);
   }
 
-  const [conversionFactor, setConversionFactor] = useState<number>(18.01528);
+  const [conversionFactor, setConversionFactor] = useState<number>(MwG * 10);
 
   // SIMULATION PARAMETERS
   // Number of days for the simulation
   const possibleDays = [1, 2, 3, 4, 5, 6, 7, 14]; // Possible days for the simulation
-  const defaultDays = possibleDays[0]; // Default number of days for the simulation
+  const defaultDays = possibleDays[3]; // Default number of days for the simulation
   const [days, setDays] = useState<number>(defaultDays);
+  const [oldDays, setOldDays] = useState<number>(defaultDays); // State to keep track of the old number of days
   const possibleTimeSteps = [1, 5, 10, 30, 60]; // Possible time steps in minutes
   const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 1]; // Default time step in minutes
   const [timeStep, setTimeStep] = useState<number>(defaultTimeStep); // Time step in minutes
@@ -48,17 +53,29 @@ const Home: NextPage = () => {
   const possibleModels = ["Hovorka"]; // Possible models
   const defaultModel = possibleModels[0]; // Default model
   const [modelName, setModelName] = useState<string>(defaultModel); // Initialize the model
-  const possibleControllers = ["P"]//, "PI", "PID"]; // Possible controllers
+
+  const possibleControllers = ["P"]//, "PD", "PID"]; // Possible controllers
   const defaultController = possibleControllers[0]; // Default controller
   const [controllerName, setControllerName] = useState<string>(defaultController); // Initialize the controller
+  const [controllerKp, setControllerKp] = useState<number>(0.2); // Proportional gain for P controller
+  const [controllerKd, setControllerKd] = useState<number>(0.7); // Derivative gain for PD controller
+  const [controllerKi, setControllerKi] = useState<number>(0.3); // Integral gain for PID controller
 
   // Glycemia unit: false for mmol/L, true for mg/dL
   const [unitMgDl, setUnitMgDl] = useState<boolean>(false); // false for mmol/L, true for mg/dL
+  const glycStep = () => unitMgDl ? 1 : 0.1;
   const initMinGlyc = () => unitMgDl ? 50 : 2.8;
   const initMaxGlyc = () => unitMgDl ? 300 : 16.7;
+  const initGoodMinGlyc = () => unitMgDl ? 80 : 4.4; // Good minimum glycemia value in mmol/L or mg/dL
+  const initGoodMaxGlyc = () => unitMgDl ? 150 : 8.3; // Good maximum glycemia value in mmol/L or mg/dL
   const [minGlycemia, setMinGlycemia] = useState<number>(initMinGlyc());
   const [maxGlycemia, setMaxGlycemia] = useState<number>(initMaxGlyc());
+  const [goodGlycemia, setGoodGlycemia] = useState<number[]>([initGoodMinGlyc(), initGoodMaxGlyc()]); // Good glycemia value in mmol/L or mg/dL
+  const [isGraphOld, setIsGraphOld] = useState<boolean>(false); // State to toggle between old and new graph
 
+
+
+  // UTILITY ARROW & NORMAL FUNCTIONS
   const repeatArray = (arr: number[], days_to_repeat: number) => {
     const repeatedArray = [];
     for (let i = 0; i < days_to_repeat; i++) {
@@ -71,10 +88,6 @@ const Home: NextPage = () => {
 
   const convertGlycemia = (glycemia: number, toMgDl: boolean): number => {
     const factor = toMgDl ? conversionFactor : 1 / conversionFactor;
-    const roundToDecimal = (value: number, decimals: number): number => {
-      const factor = Math.pow(10, decimals);
-      return Math.round(value * factor) / factor;
-    }
     return roundToDecimal(glycemia * factor, toMgDl ? 0 : 1);
   }
 
@@ -82,8 +95,11 @@ const Home: NextPage = () => {
     setUnitMgDl(toMgDl);
     setMinGlycemia(initMinGlyc());
     setMaxGlycemia(initMaxGlyc());
+    setGoodGlycemia([initGoodMinGlyc(), initGoodMaxGlyc()])
+    console.log(minGlycemia, maxGlycemia, goodGlycemia);
     setResult(result.map(glycemia => convertGlycemia(glycemia, toMgDl)));
   }
+
 
 
   // PATIENT PARAMETERS
@@ -295,7 +311,7 @@ const Home: NextPage = () => {
   let basal = [
     {
       "hour_start": "0" + basal_hour_starts[0] +  ":00",
-      "hour_end": String(basal_hour_starts[1] - 1) + ":59",
+      "hour_end": "0" + String(basal_hour_starts[1] - 1) + ":59",
       "time_start": basal_time(0, timeStep),
       "time_end": basal_time(1, timeStep) - 1,
       "value": basal00
@@ -344,13 +360,13 @@ const Home: NextPage = () => {
   const [uIns, setUIns] = useState<number[]>(uIns_days(days));
   const [result, setResult] = useState<number[]>([]);
 
-  const setParams = (new_value: number, name: string) => {
+  const setParameter = (new_value: number, name: string) => {
     if (name == "days"){
+      setOldDays(days);
       setDays(new_value);
+
       setTimeLength(timeLength_days(new_value, timeStep));
       setTime(initTime(timeLength_days(new_value, timeStep)));
-
-      console.log("Updated days or timeStep", name, "=", new_value);
     } else if (name == "timeStep") {
       setTimeStep(new_value);
 
@@ -363,18 +379,17 @@ const Home: NextPage = () => {
       for (let i = 0; i < basal.length; i++) {
         basal[i].time_start = basal_time(i, new_value);
       }
-
-
-
-      //setUIns(uIns_days(days));
-      setResult([]);
-
-      console.log("Updated carbs", carbs);
-
-      console.log("Updated basal", basal);
-
     } else {
       switch (name) {
+        case "Kp":
+          setControllerKp(new_value)
+          break;
+        case "Kd":
+          setControllerKd(new_value)
+          break;
+        case "Ki":
+          setControllerKi(new_value)
+          break;
         case "EGP0":
           setEGP0_value(new_value);
           break;
@@ -429,6 +444,7 @@ const Home: NextPage = () => {
       }
     }
     console.log("Updated parameter", name, "=", new_value);
+    setIsGraphOld(true); // Set the graph to old state to trigger re-render
   }
 
   const setMeal = (mealName: string, value: number) => {
@@ -452,6 +468,7 @@ const Home: NextPage = () => {
       default:
         console.warn("Unknown meal type:", mealName);
     }
+    setIsGraphOld(true); // Set the graph to old state to trigger re-render
   }
 
   const setBasal = (hour_start: string, value: number) => {
@@ -477,94 +494,115 @@ const Home: NextPage = () => {
         break;
       }
     }
+    setIsGraphOld(true) // Set the graph to old state to trigger re-render
   }
 
   const handleExecute = () => {
-
-    const params = {  // Parameters for the Hovorka model multiplied by timeStep or divided by timeStep as needed
+    const simulationParams = {  // Parameters for the Simulation
       "days": days,
       "timeStep": timeStep,
       "time": time,
       "unitMgDl": unitMgDl,
+      "modelName": modelName,
+      "controller": {
+        "name": controllerName,
+        "Kp": controllerKp,
+        "Kd": controllerKd,
+        "Ki": controllerKi
+      }
+    }
+    const patientParams = {  // Parameters for the Patient, following Hovorka model multiplied by timeStep or divided by timeStep as needed
       "EGP0": EGP0_value / timeStep,
       "F01": F01_value * timeStep,
-      "K12": K12_value / timeStep,
-      "Ka1": Ka1_value / timeStep,
-      "Ka2": Ka2_value / timeStep,
-      "Ka3": Ka3_value / timeStep,
+      "k12": K12_value / timeStep,
+      "ka1": Ka1_value / timeStep,
+      "ka2": Ka2_value / timeStep,
+      "ka3": Ka3_value / timeStep,
       "SI1": SI1_value / timeStep,
       "SI2": SI2_value / timeStep,
       "SI3": SI3_value,
-      "Ke": Ke_value / timeStep,
+      "ke": Ke_value / timeStep,
       "VI": VI_value,
       "VG": VG_value,
-      "TauI": TauI_value * timeStep,
-      "TauG": TauG_value * timeStep,
+      "tauI": TauI_value * timeStep,
+      "tauG": TauG_value * timeStep,
       "AG": AG_value,
-      "BW": BW_value
+      "BW": BW_value,
+      "MwG": MwG
     };
 
     const dCho = getDCho(days, timeStep);
-
     const uIns = getUIns(days, timeStep);
 
 
-    //console.log("Parameters:", params);
-    //console.log("Time step = ", timeStep, "minutes");
-    //console.log("Time length=", timeLength, ", time.length=", time.length);
-    //console.log("Carbs = ", carbs)
-    //console.log("dCho=", dCho);
+    if (debug) {
+      const total_length = days * 24 * 60 / timeStep + 1; // Length of one day in minutes based on timeStep
+      const fakeResult = Array.from({length: total_length}, (_, i) => {
+        return generateValueGivenMeanAndStdDev(initMinGlyc(), initMaxGlyc(), glycStep(), "uniform"); // Return a random glycemia value for that hour
+      });
+      setResult(fakeResult);
+      /*
+      const length_one_day = 24 * 60 / timeStep + 1; // Length of one day in minutes based on timeStep
+      const fakeGlycemiaDay = Array.from({length: length_one_day}, (_, i) => {
+        return generateValueGivenMeanAndStdDev(initMinGlyc(), initMaxGlyc(), glycStep(), "uniform"); // Return a random glycemia value for that hour
+      });
+      //console.log(fakeGlycemiaDay);
 
-    //console.log("Basal insulin:", basal);
-    //console.log("uIns:", uIns);
+      const fakeResult = repeatArray(fakeGlycemiaDay, days);
+      setResult(fakeResult);
+       */
+    } else {
+      const output = Simulator(modelName, controllerName, dCho, uIns, simulationParams, patientParams);
+      if (unitMgDl) setResult(output[0].map(glycemia => convertGlycemia(glycemia, true)));
 
-    /*
-    // @ts-ignore
-    const model = new HovorkaModel({});
+      /*
+      // @ts-ignore
+      const model = new HovorkaModel({});
 
-    const parameters = model.getParameter();
-    const MwG = parameters.MwG.value;
-    setConversionFactor(MwG / 10)
+      const parameters = model.getParameter();
+      const MwG = parameters.MwG.value;
+      setConversionFactor(MwG / 10)
 
-    console.log("Start glycemia:", startGlycemia,  unitMgDl ? "mg/dL" : "mmol/L");
-    console.log("Time:", time);
-    console.log("Carbohydrate intake:", dCho);
-    console.log("Insulin infusion:", uIns);
+      console.log("Start glycemia:", startGlycemia,  unitMgDl ? "mg/dL" : "mmol/L");
+      console.log("Time:", time);
+      console.log("Carbohydrate intake:", dCho);
+      console.log("Insulin infusion:", uIns);
 
 
 
-    const result = model.simulate(time, startGlycemia/ (unitMgDl ? MwG * 10 : 1), dCho, uIns);
-    console.log(result);
+      const result = model.simulate(time, startGlycemia/ (unitMgDl ? MwG * 10 : 1), dCho, uIns);
+      console.log(result);
 
-     */
-    /*
+       */
+      /*
 
-    // @ts-ignore
-    const model = new HovorkaModelODE({});
-    const parameters = model.getParameter();
-    const MwG = parameters.MwG.value;
-    setConversionFactor(MwG / 10);
+      // @ts-ignore
+      const model = new HovorkaModelODE({});
+      const parameters = model.getParameter();
+      const MwG = parameters.MwG.value;
+      setConversionFactor(MwG / 10);
 
-    const patient: PatientInput = {
+      const patient: PatientInput = {
 
-      //"Gstart": startGlycemia / (unitMgDl ? MwG * 10 : 1),
-      //"dCho": repeatArray(dCho),
-      //"uIns": repeatArray(uIns),
+        //"Gstart": startGlycemia / (unitMgDl ? MwG * 10 : 1),
+        //"dCho": dCho,
+        //"uIns": uIns,
+      }
+
+      //const result = Simulator(days, startGlycemia/ (unitMgDl ? MwG * 10 : 1), patient, model);
+      //if (result) setResult(result[0]);
+
+       */
+
+      /*const output = Simulator(days, startGlycemia/ (unitMgDl ? MwG * 10 : 1), patient, model);
+      if (result) setResult(output[0]);*/
     }
-
-    //const result = Simulator(days, startGlycemia/ (unitMgDl ? MwG * 10 : 1), patient, model);
-    //if (result) setResult(result[0]);
-
-    const inputGlyc = 100 / (unitMgDl ? MwG * 10 : 1);
-    const basicArray = [initMinGlyc(), inputGlyc, initMaxGlyc()];
-    //const result = repeatArray(Array(8).fill(0).flatMap(() => basicArray));
-    setResult(result);
-    */
+    setIsGraphOld(false); // Set the graph to new state to trigger re-render
   }
 
   // @ts-ignore
   return (
-    <section className="p-8 max-w-4xl mx-auto overflow-visible relative">
+    <section className="p-8 max-w-6xl mx-auto overflow-visible relative">
       <h1 className="text-3xl font-bold mb-4">DTU Special course Diabetes 1 Simulator</h1>
       {/*<p className="mb-4">
         In this project we develop simulation and control software for diabetes technology. The main focus will be related to simulation models, user-experiences, and web-enabled user interfaces. We will study numerical algorithms for simulation in web-enabled programming languages such as JavaScript/TypeScript. In this respect we will seek inspiration in both lt1.org and t2d.aau.dk. We will apply full stack development (html/css/JavaScript/TypeScript) and scientific computing for simulation to diabetes applications.
@@ -594,7 +632,7 @@ const Home: NextPage = () => {
 
       <div className="mt-8">
         <div className="mt-8 overflow-visible relative">
-          <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Simulation Parameters</h2>
+          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Simulation Parameters</h2>
           <div className="overflow-x-auto overflow-visible relative">
             <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
                    style={{borderColor: "var(--primary)"}}>
@@ -613,7 +651,7 @@ const Home: NextPage = () => {
                     id="days"
                     name="days"
                     onChange={(e) => {
-                      setParams(Number(e.target.value), "days");
+                      setParameter(Number(e.target.value), "days");
                     }}
                     data-np-intersection-state="observed"
                     defaultValue={defaultDays}
@@ -632,7 +670,7 @@ const Home: NextPage = () => {
                     id="unit"
                     name="unit"
                     onChange={(e) => {
-                      setParams(Number(e.target.value), "timeStep");
+                      setParameter(Number(e.target.value), "timeStep");
                     }}
                     data-np-intersection-state="observed"
                     defaultValue={defaultTimeStep}
@@ -659,7 +697,7 @@ const Home: NextPage = () => {
                     defaultValue={unitMgDl ? "mg/dL" : "mmol/L"}
                   >
                     <option value="mmol/L">mmol/L</option>
-                    <option value="mg/dL">mg/dL</option>
+                    {/*<option value="mg/dL">mg/dL</option>*/}
                   </select>
                 </td>
               </tr>
@@ -671,7 +709,9 @@ const Home: NextPage = () => {
                     id="model"
                     name="model"
                     onChange={(e) => {
-                      setModelName(String(e.target.value));
+                      const newModelName = String(e.target.value);
+                      setIsGraphOld(modelName !== newModelName); // Set the graph to old state to trigger re-render
+                      setModelName(newModelName);
                     }}
                     data-np-intersection-state="observed"
                     defaultValue={defaultModel}
@@ -690,7 +730,9 @@ const Home: NextPage = () => {
                     id="model"
                     name="model"
                     onChange={(e) => {
-                      setControllerName(String(e.target.value));
+                      const newControllerName = String(e.target.value);
+                      setIsGraphOld(newControllerName !== controllerName); // Set the graph to old state to trigger re-render
+                      setControllerName(newControllerName);
                     }}
                     data-np-intersection-state="observed"
                     defaultValue={defaultController}
@@ -702,13 +744,67 @@ const Home: NextPage = () => {
                 </td>
               </tr>
 
+              {(controllerName === "P" || controllerName === "PD" || controllerName === "PID" ) && (
+                <tr>
+                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller parameter <i>k</i><sub><i>p</i></sub></td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                    <input
+                      type="number"
+                      value={controllerKp}
+                      onChange={(e) => setParameter(Number(e.target.value), "Kp")}
+                      min="0"
+                      max="2"
+                      step="0.01"
+                      data-np-intersection-state="observed"
+                      className="w-[6.5ch] px-1 text-left"
+                    />
+                  </td>
+                </tr>
+              )}
+
+              {(controllerName === "PD" || controllerName === "PID" ) && (
+                <tr>
+                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller parameter <i>k</i><sub><i>d</i></sub></td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                    <input
+                      type="number"
+                      value={controllerKd}
+                      onChange={(e) => setParameter(Number(e.target.value), "Kd")}
+                      min="0"
+                      max="2"
+                      step="0.01"
+                      data-np-intersection-state="observed"
+                      className="w-[6.5ch] px-1 text-left"
+                    />
+                  </td>
+                </tr>
+              )}
+
+              {(controllerName === "PID" ) && (
+                <tr>
+                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller parameter <i>k</i><sub><i>i</i></sub></td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                    <input
+                      type="number"
+                      value={controllerKi}
+                      onChange={(e) => setParameter(Number(e.target.value), "Ki")}
+                      min="0"
+                      max="2"
+                      step="0.01"
+                      data-np-intersection-state="observed"
+                      className="w-[6.5ch] px-1 text-left"
+                    />
+                  </td>
+                </tr>
+              )}
+
               </tbody>
             </table>
           </div>
         </div>
 
         <div className="mt-8 overflow-visible relative">
-          <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Patient Parameters</h2>
+          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Patient {modelName} Parameters</h2>
           <div className="overflow-x-auto overflow-visible relative">
             <table className="min-w-full border-collapse border overflow-visible relative"
                    style={{borderColor: "var(--primary)"}}>
@@ -731,7 +827,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={EGP0_value}
-                    onChange={(e) => setParams(Number(e.target.value), "EGP0")}
+                    onChange={(e) => setParameter(Number(e.target.value), "EGP0")}
                     min={EGP0_mean - 3 * EGP0_stdDev}
                     max={EGP0_mean + 3 * EGP0_stdDev}
                     step={EGP0_step}
@@ -739,8 +835,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{EGP0_unit}</td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{EGP0_unit}</td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={EGP0_step} className="w-[6.5ch] px-1 text-right" name="EGP0 mean"
                   onChange={(e) => setEGP0_mean(Number(e.target.value))} value={EGP0_mean}
@@ -768,7 +864,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={F01_value}
-                    onChange={(e) => setParams(Number(e.target.value), "F01")}
+                    onChange={(e) => setParameter(Number(e.target.value), "F01")}
                     min={F01_mean - 3 * F01_stdDev}
                     max={F01_mean + 3 * F01_stdDev}
                     step={F01_step}
@@ -776,8 +872,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{F01_unit}</td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{F01_unit}</td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={F01_step} className="w-[6.5ch] px-1 text-right" name="F01 mean"
                   onChange={(e) => setF01_mean(Number(e.target.value))} value={F01_mean}
@@ -805,7 +901,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={K12_value}
-                    onChange={(e) => setParams(Number(e.target.value), "K12")}
+                    onChange={(e) => setParameter(Number(e.target.value), "K12")}
                     min={K12_mean - 3 * K12_stdDev}
                     max={K12_mean + 3 * K12_stdDev}
                     step={K12_step}
@@ -813,8 +909,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={K12_step} className="w-[6.5ch] px-1 text-right" name="K12 mean"
                   onChange={(e) => setK12_mean(Number(e.target.value))} value={K12_mean}
@@ -842,7 +938,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={Ka1_value}
-                    onChange={(e) => setParams(Number(e.target.value), "Ka1")}
+                    onChange={(e) => setParameter(Number(e.target.value), "Ka1")}
                     min={Ka1_mean - 3 * Ka1_stdDev}
                     max={Ka1_mean + 3 * Ka1_stdDev}
                     step={Ka1_step}
@@ -850,8 +946,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={Ka1_step} className="w-[6.5ch] px-1 text-right" name="Ka1 mean"
                   onChange={(e) => setKa1_mean(Number(e.target.value))} value={Ka1_mean}
@@ -879,7 +975,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={Ka2_value}
-                    onChange={(e) => setParams(Number(e.target.value), "Ka2")}
+                    onChange={(e) => setParameter(Number(e.target.value), "Ka2")}
                     min={Ka2_mean - 3 * Ka2_stdDev}
                     max={Ka2_mean + 3 * Ka2_stdDev}
                     step={Ka2_step}
@@ -887,8 +983,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={Ka2_step} className="w-[6.5ch] px-1 text-right" name="Ka2 mean"
                   onChange={(e) => setKa2_mean(Number(e.target.value))} value={Ka2_mean}
@@ -916,7 +1012,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={Ka3_value}
-                    onChange={(e) => setParams(Number(e.target.value), "Ka3")}
+                    onChange={(e) => setParameter(Number(e.target.value), "Ka3")}
                     min={Ka3_mean - 3 * Ka3_stdDev}
                     max={Ka3_mean + 3 * Ka3_stdDev}
                     step={Ka3_step}
@@ -924,8 +1020,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={Ka3_step} className="w-[6.5ch] px-1 text-right" name="Ka3 mean"
                   onChange={(e) => setKa3_mean(Number(e.target.value))} value={Ka3_mean}
@@ -953,7 +1049,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={SI1_value}
-                    onChange={(e) => setParams(Number(e.target.value), "SI1")}
+                    onChange={(e) => setParameter(Number(e.target.value), "SI1")}
                     min={SI1_mean - 3 * SI1_stdDev}
                     max={SI1_mean + 3 * SI1_stdDev}
                     step={SI1_step}
@@ -961,10 +1057,10 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup> / (mU
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup> / (mU
                   / L)
                 </td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={SI1_step} className="w-[6.5ch] px-1 text-right" name="SI1 mean"
                   onChange={(e) => setSI1_mean(Number(e.target.value))} value={SI1_mean}
@@ -992,7 +1088,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={SI2_value}
-                    onChange={(e) => setParams(Number(e.target.value), "SI2")}
+                    onChange={(e) => setParameter(Number(e.target.value), "SI2")}
                     min={SI2_mean - 3 * SI2_stdDev}
                     max={SI2_mean + 3 * SI2_stdDev}
                     step={SI2_step}
@@ -1000,10 +1096,10 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup> / (mU
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup> / (mU
                   / L)
                 </td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={SI2_step} className="w-[6.5ch] px-1 text-right" name="SI2 mean"
                   onChange={(e) => setSI2_mean(Number(e.target.value))} value={SI2_mean}
@@ -1031,7 +1127,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={SI3_value}
-                    onChange={(e) => setParams(Number(e.target.value), "SI3")}
+                    onChange={(e) => setParameter(Number(e.target.value), "SI3")}
                     min={SI3_mean - 3 * SI3_stdDev}
                     max={SI3_mean + 3 * SI3_stdDev}
                     step={SI3_step}
@@ -1039,8 +1135,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{SI3_unit}</td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{SI3_unit}</td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={SI3_step} className="w-[6.5ch] px-1 text-right" name="SI3 mean"
                   onChange={(e) => setSI3_mean(Number(e.target.value))} value={SI3_mean}
@@ -1068,7 +1164,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={Ke_value}
-                    onChange={(e) => setParams(Number(e.target.value), "Ke")}
+                    onChange={(e) => setParameter(Number(e.target.value), "Ke")}
                     min={Ke_mean - 3 * Ke_stdDev}
                     max={Ke_mean + 3 * Ke_stdDev}
                     step={Ke_step}
@@ -1076,8 +1172,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>min<sup>-1</sup></td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={Ke_step} className="w-[6.5ch] px-1 text-right" name="Ke mean"
                   onChange={(e) => setKe_mean(Number(e.target.value))} value={Ke_mean}
@@ -1105,7 +1201,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={VI_value}
-                    onChange={(e) => setParams(Number(e.target.value), "VI")}
+                    onChange={(e) => setParameter(Number(e.target.value), "VI")}
                     min={VI_mean - 3 * VI_stdDev}
                     max={VI_mean + 3 * VI_stdDev}
                     step={VI_step}
@@ -1113,8 +1209,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{VI_unit}</td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{VI_unit}</td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>~ <i>N</i> ({<input
                   type="text" step={VI_step} className="w-[6.5ch] px-1 text-right" name="VI mean"
                   onChange={(e) => setVI_mean(Number(e.target.value))} value={VI_mean}
@@ -1142,7 +1238,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={VG_value}
-                    onChange={(e) => setParams(Number(e.target.value), "VG")}
+                    onChange={(e) => setParameter(Number(e.target.value), "VG")}
                     min={VG_mean - 3 * VG_stdDev}
                     max={VG_mean + 3 * VG_stdDev}
                     step={VG_step}
@@ -1150,8 +1246,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{VG_unit}</td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{VG_unit}</td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}>exp(<i>V</i><sub><i>G</i></sub>) ~ <i>N</i> ({<input
                   type="text" step={VG_step} className="w-[6.5ch] px-1 text-right" name="VG mean"
                   onChange={(e) => setVG_mean(Number(e.target.value))} value={VG_mean}
@@ -1179,7 +1275,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={TauI_value}
-                    onChange={(e) => setParams(Number(e.target.value), "TauI")}
+                    onChange={(e) => setParameter(Number(e.target.value), "TauI")}
                     min={TauI_mean - 3 * TauI_stdDev}
                     max={TauI_mean + 3 * TauI_stdDev}
                     step={TauI_step}
@@ -1187,8 +1283,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{TauI_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{TauI_unit}</td>
+                <td className="border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>
                   <sup>1</sup> &frasl; <sub><i>&tau;</i><sub><i>I</i></sub></sub> ~ <i>N</i> ({<input
                   type="text" step={TauI_step} className="w-[6.5ch] px-1 text-right" name="TauI mean"
                   onChange={(e) => setTauI_mean(Number(e.target.value))} value={TauI_mean}
@@ -1216,7 +1312,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={TauG_value}
-                    onChange={(e) => setParams(Number(e.target.value), "TauG")}
+                    onChange={(e) => setParameter(Number(e.target.value), "TauG")}
                     min={TauG_mean - 3 * TauG_stdDev}
                     max={TauG_mean + 3 * TauG_stdDev}
                     step={TauG_step}
@@ -1224,8 +1320,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{TauG_unit}</td>
-                <td className="border border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{TauG_unit}</td>
+                <td className="border px-4 py-2 text-right" style={{borderColor: "var(--primary)"}}>
                   <sup>1</sup> &frasl; <sub>ln(<i>&tau;</i><sub><i>G</i></sub>)</sub> ~ <i>N</i> ({<input
                   type="text" step={TauG_step} className="w-[6.5ch] px-1 text-right" name="TauG mean"
                   onChange={(e) => setTauG_mean(Number(e.target.value))} value={TauG_mean}
@@ -1253,7 +1349,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={AG_value}
-                    onChange={(e) => setParams(Number(e.target.value), "AG")}
+                    onChange={(e) => setParameter(Number(e.target.value), "AG")}
                     min={AG_min - 3 * AG_max}
                     max={AG_min + 3 * AG_max}
                     step={AG_step}
@@ -1261,8 +1357,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{AG_unit}</td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{AG_unit}</td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}> ~ <i>U</i> ({<input
                   type="text" step={AG_step} className="w-[3.5ch] px-1 text-right" name="AG min"
                   onChange={(e) => setAG_min(Number(e.target.value))} value={AG_min}
@@ -1289,7 +1385,7 @@ const Home: NextPage = () => {
                   <input
                     type="number"
                     value={BW_value}
-                    onChange={(e) => setParams(Number(e.target.value), "BW")}
+                    onChange={(e) => setParameter(Number(e.target.value), "BW")}
                     min={BW_min - 3 * BW_max}
                     max={BW_min + 3 * BW_max}
                     step={BW_step}
@@ -1297,8 +1393,8 @@ const Home: NextPage = () => {
                     className="w-[8ch] px-1 text-right"
                   />
                 </td>
-                <td className="border border px-4 py-2" style={{borderColor: "var(--primary)"}}>{BW_unit}</td>
-                <td className="border border px-4 py-2 text-right"
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{BW_unit}</td>
+                <td className="border px-4 py-2 text-right"
                     style={{borderColor: "var(--primary)"}}> ~ <i>U</i> ({<input
                   type="text" step={BW_step} className="w-[3.5ch] px-1 text-right" name="BW min"
                   onChange={(e) => setBW_min(Number(e.target.value))} value={BW_min}
@@ -1326,7 +1422,7 @@ const Home: NextPage = () => {
 
 
         <div className="mt-8 overflow-visible relative">
-          <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Carbohydrate Intake</h2>
+          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Carbohydrate Intake</h2>
           <div className="overflow-x-auto overflow-visible relative">
             <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
                    style={{borderColor: "var(--primary)"}}>
@@ -1368,7 +1464,7 @@ const Home: NextPage = () => {
         </div>
 
         <div className="mt-8 overflow-visible relative">
-          <h2 className="text-2xl font-semibold mb-4 overflow-visible relative">Insulin Intake</h2>
+          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Insulin Intake</h2>
           <div className="overflow-x-auto overflow-visible relative">
             <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
                    style={{borderColor: "var(--primary)"}}>
@@ -1376,14 +1472,14 @@ const Home: NextPage = () => {
               <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
                 <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Start Time</th>
                 <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>End Time</th>
-                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value [U/h]</th>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value [U / h]</th>
               </tr>
               </thead>
               <tbody className="text-center">
 
               {basal.map((slot, index) => (
                 <tr key={index}>
-                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>{slot.hour_start}</td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{slot.hour_start}</td>
                   <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{slot.hour_end}</td>
                   <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
                     <input
@@ -1400,7 +1496,7 @@ const Home: NextPage = () => {
                       step={ins_step}
                       data-np-intersection-state="observed"
                       className="w-[6.7ch] px-1 text-left"
-                    /> U/h
+                    /> U / h
                   </td>
                 </tr>
               ))}
@@ -1414,39 +1510,66 @@ const Home: NextPage = () => {
             onClick={handleExecute}
             className="mt-4 px-4 py-2.5 text-base font-extrabold rounded-full w-full cursor-pointer"
             style={{
-              backgroundColor: "var(--primary)",
+              backgroundColor: isGraphOld && result.length > 0 ? "var(--warning)" : "var(--primary)",
               color: "var(--secondary)",
               fontSize: "22px",
             }}
           >
-            Simulate
+            Simulate{isGraphOld && result.length > 0 ? " again (what you see now is an old graph)" : ""}
           </button>
         </div>
 
         {result.length > 0 && (
           <div className="mt-8 overflow-visible relative">
-            <h2 className="text-2xl font-semibold mt-8 mb-4">Simulation result</h2>
-            <LineChart
-              className="mt-4"
-              xAxis={[{data: time, label: "Time (hours)", fill: "var(--primary)"}]}
-              yAxis={[{data: result, label: unitMgDl ? "Glucose (mg/dL)" : "Glucose (mmol/L)"}]}
-              series={
-                [{curve: "catmullRom", data: result.map((value: number) => (value ? value : null))}]
-              }
-              width={900}
-              height={300}
-            />
+            <h2 className="text-2xl font-semibold mt-8 mb-4 ml-2">Simulation Results{debug ? " (now the simulation outputs only random values)" : ""}<span
+              style={{color: "var(--warning)"}}>{isGraphOld ? "*" : ""}</span></h2>
+            <div className="overflow-x-auto" style={{backgroundColor: "var(--snow-white)", borderRadius: "26.5px"}}>
+              {Array.from({length: days}).map((_, dayIndex) => {
+                const showThisGraph = (isGraphOld && dayIndex < oldDays) || !isGraphOld;
+
+                if (!showThisGraph) return null;
+
+                const pointsPerDay = (24 * 60) / timeStep + 1;
+                const dayStart = dayIndex * pointsPerDay - (dayIndex == 0 ? 0 : dayIndex);
+                const dayEnd = (dayIndex + 1) * pointsPerDay - (dayIndex == 0 ? 0 : dayIndex);
+
+                //console.log("DayIndex:", dayIndex, "\nDayStart:", dayStart, "DayEnd:", dayEnd, "PointsPerDay:", pointsPerDay, "\nResult Length:", result.length);
+
+                const dayHours = Array.from({length: pointsPerDay}, (_, i) => (i * timeStep / 60));
+                const dayResult = result.slice(dayStart, dayEnd);
+
+                return (
+                  <div key={dayIndex} className="mb-8 overflow-visible relative">
+                    <h3 className="text-xl font-semibold mt-4 ml-4"
+                        style={{color: "var(--true-blue)"}}>Day {dayIndex + 1}</h3>
+                    <LineChart
+                      className="mt-1 ml-1.5"
+                      xAxis={[{
+                        data: dayHours,
+                        label: "Time (h)",
+                        fill: "var(--primary)",
+                        min: 0,
+                        max: 24
+                      }]}
+                      yAxis={[{
+                        data: dayResult,
+                        min: minGlycemia,
+                        max: maxGlycemia,
+                        label: "Glucose " + (unitMgDl ? "(mg/dL)" : "(mmol/L)")
+                      }]}
+                      series={[{
+                        curve: "catmullRom",
+                        data: dayResult.map((value: number) => (value ? value : null)),
+                      }]}
+
+                      width={1050}
+                      height={350}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>)}
-        {/*result.length > 0 && (
-          <div className="mt-4">
-            <h3 className="text-xl font-semibold">Result:</h3>
-            <ul className="list-disc list-inside">
-              {result.map((value, index) => (
-                <li key={index}>{value}</li>
-              ))}
-            </ul>
-          </div>
-        )*/}
       </div>
 
       <div className="mt-8 overflow-visible relative"></div>
