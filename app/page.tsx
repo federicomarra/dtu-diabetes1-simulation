@@ -40,7 +40,7 @@ const Home: NextPage = () => {
   // SIMULATION PARAMETERS
   // Number of days for the simulation
   const possibleDays = [1, 2, 3, 4, 5, 6, 7, 14]; // Possible days for the simulation
-  const defaultDays = possibleDays[3]; // Default number of days for the simulation
+  const defaultDays = possibleDays[0]; // Default number of days for the simulation
   const [days, setDays] = useState<number>(defaultDays);
   const [oldDays, setOldDays] = useState<number>(defaultDays); // State to keep track of the old number of days
   const possibleTimeSteps = [1, 5, 10, 30, 60]; // Possible time steps in minutes
@@ -120,7 +120,7 @@ const Home: NextPage = () => {
   const [EGP0_stdDev, setEGP0_stdDev] = useState(0.0039); // EGP0 standard deviation in mmol/min/kg
   const EGP0_step = 0.0001; // EGP0 step size for input field
   const [EGP0_value, setEGP0_value] = useState(generateValueGivenMeanAndStdDev(EGP0_mean, EGP0_stdDev, EGP0_step)); // EGP0 initial value in mmol/min/kg
-  const EGP0_unit = "mmol / min / kg"; // EGP0 unit
+  const EGP0_unit = "mmol / kg / min"; // EGP0 unit
   const EGP0_description = "Endogenous glucose production rate is the rate at which glucose is produced by the liver in the absence of food intake or insulin stimulation. It is a key parameter in glucose metabolism and regulation.";
   const [EGP0_hover, setEGP0_hover] = useState(false); // EGP0 hover state for tooltip
 
@@ -525,7 +525,7 @@ const Home: NextPage = () => {
     }
     const patientParams = {  // Parameters for the Patient, following Hovorka model multiplied by timeStep or divided by timeStep as needed
       "EGP0": EGP0_value / timeStep,
-      "F01": F01_value * timeStep,
+      "F01": F01_value / timeStep,
       "k12": K12_value / timeStep,
       "ka1": Ka1_value / timeStep,
       "ka2": Ka2_value / timeStep,

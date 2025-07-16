@@ -27,16 +27,15 @@ export class HovorkaModelODE extends Component {
   /**
    * Computes the insulin infusion rate (IIR) based on the target blood glucose level and time.
    *
-   * @param {number} targetBG - The target blood glucose level in mmol/L.
-   * @param {number} t - The current time in millisec.
+   * @param {any} patient - The patient object containing parameters for the model.
    * @returns {number} IIR - The computed insulin infusion rate.
    */
   computeIIR(patient: any): number {
     /** extractions of parameters */
-    const VG = patient.VG;
     const BW = patient.BW; // body weight in kg
+    const VG = patient.VG * BW; // glucose distribution volume
     const F01 = patient.F01;
-    let EGP0 = patient.EGP0;
+    const EGP0 = patient.EGP0 * BW;
     const SI1 = patient.SI1; // insulin sensitivity of distribution/transport
     const SI2 = patient.SI2; // insulin sensitivity of disposal
     const SI3 = patient.SI3; // insulin sensitivity of EGP
@@ -51,7 +50,6 @@ export class HovorkaModelODE extends Component {
     /** equilibrium blood glucose levels in mmol/l */
     const Q1eq = Geq * VG * BW;
     const F01eq = F01 * BW * Math.min(Geq / 4.5, 1);
-    EGP0 = EGP0 * BW;
 
     /** equilibrium insulin levels in mU/l */
     const Ieq_a = - Q1eq * SI1 * SI2 - EGP0 * SI2 * SI3
@@ -72,24 +70,24 @@ export class HovorkaModelODE extends Component {
     return Seq / tauI / 1000 * 60
   }
 
-  computeSteady(patient: NamedVector, t: number): NamedVector {
+  computeSteady(patient: NamedVector, input: PatientInput): NamedVector {
     /** extractions of parameters */
-    const VG = patient.VG;
-    const F01 = patient.F01;
+    const F01 = patient.F01;  // non-insulin-dependent glucose ﬂux in mmol/kg/min
     const BW = patient.BW; // body weight in kg
-    const VI = patient.VI; // insulin distribution volume
+    const VI = patient.VI * BW; // insulin distribution volume
     const ke = patient.ke; // insulin elimination from plasma
     const SI1 = patient.SI1; // insulin sensitivity of distribution/transport
     const SI2 = patient.SI2; // insulin sensitivity of disposal
     const SI3 = patient.SI3; // insulin sensitivity of EGP
-    const EGP0 = patient.EGP0; // endogenous glucose production extrapolated to zero insulin concentration
+    const EGP0 = patient.EGP0 * BW; // endogenous glucose production extrapolated to zero insulin concentration
     const k12 = patient.k12; // transfer rate from the non-accessible to the accessible compartment
     const tauI = patient.tauI; // maximum insulin absorption time
 
     /** equilibrium blood glucose levels in mmol/l */
     const Geq = patient.Geq
     const F01eq = F01 * BW * Math.min(Geq / 4.5, 1)
-    const Seq = (patient.iir || 0) * tauI * 1000 / 60
+    //const Seq = (input.iir || 0) * tauI * 1000 / 60
+    const Seq = this.computeIIR(patient) * tauI * 1000 / 60; // insulin absorption in mU/min
     const Ieq = Seq / (tauI * (VI * BW) * ke)
     const x1eq = SI1 * Ieq
     const x2eq = SI2 * Ieq
@@ -111,7 +109,8 @@ export class HovorkaModelODE extends Component {
       };
   }
 
-  computeDerivatives(t: number, state: ModelType, patient: NamedVector, dCho: number[], uIns: number[]): NamedVector {
+  computeDerivatives(t: number, state: NamedVector, patient: NamedVector, input: PatientInput): NamedVector {
+    console.log(state)
     /** extractions of parameters */
     const BW = patient.BW; // body weight in kg
 
@@ -125,7 +124,7 @@ export class HovorkaModelODE extends Component {
 
     const tauD = patient.tauD; // maximum glucose absorption time
 
-    const F01 = patient.F01 * BW;   // glucose appearance rate in mmol/min
+    const F01 = patient.F01;   // glucose appearance rate in mmol/min
     const EGP0 = patient.EGP0 * BW; // endogenous glucose production extrapolated to zero insulin concentration
 
     const k12 = patient.k12; // transfer rate from the non-accessible to the accessible compartment
@@ -137,25 +136,26 @@ export class HovorkaModelODE extends Component {
 
 
 
-    /** extractions of patient model nodes */
+    /** extractions of input */
     const IIR = (patient.iir || 0) * 1000 / 60;    // insulin infusion rate in mU/min
-    const D = (dCho[t]) ? (1000 / MwG) * (dCho[t] || 0) : 0; // eq:2.10 (meal ingestion in mmol/min)
-    const G = state.Q1.value / (VG);          // eq:2.3 (glucose in mmol/l)
+    // @ts-ignore
+    const D = (input?.carbs[t]) ? (1000 / MwG) * (input.carbs[t] || 0) : 0; // eq:2.10 (meal ingestion in mmol/min)
+    const G = state.Q1 / (VG);          // eq:2.3 (glucose in mmol/l)
 
     /** extractions of state model nodes */
-    const S1 = state.S1.value;
-    const S2 = state.S2.value;
-    const I = state.I.value;
+    const S1 = state.S1;
+    const S2 = state.S2;
+    const I = state.I;
 
-    const D1 = state.D1.value;
-    const D2 = state.D2.value;
+    const D1 = state.D1;
+    const D2 = state.D2;
 
-    const x1 = state.x1.value;
-    const x2 = state.x2.value;
-    const x3 = state.x3.value;
+    const x1 = state.x1;
+    const x2 = state.x2;
+    const x3 = state.x3;
 
-    const Q1 = state.Q1.value;
-    const Q2 = state.Q2.value;
+    const Q1 = state.Q1;
+    const Q2 = state.Q2;
 
 
     /** cho absorption */
@@ -203,7 +203,7 @@ export class HovorkaModelODE extends Component {
       D2: dD2
     }
 
-    console.log("State vector at time ", t, ": ", vect);
+    //console.log("State vector at dt=", t, ": ", vect);
 
     //return (t, vect) => vect
     return vect
@@ -215,7 +215,7 @@ export class HovorkaModelODE extends Component {
     const Q1 = state.Q1;
     const BW = patient.BW; // body weight in kg
     //const MwG = this.getParameter().MwG.value; // molecular weight of glucose
-    const VG = patient.VG.value * BW; // glucose distribution volume
+    const VG = patient.VG * BW; // glucose distribution volume
 
     const G = Q1 / VG; // eq:2.3 (glucose in mmol/l)
 

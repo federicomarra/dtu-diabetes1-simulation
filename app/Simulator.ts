@@ -17,13 +17,17 @@ export function Simulator(modelName: string, controllerName: string, d: number[]
 
   const model = new HovorkaModelODE(tInit);
 
-  const state = model.state
+  const input: PatientInput = {
+    carbs: d, // Carbohydrate intake in grams
+    basal: u, // Basal insulin rate in U/min
+    hir: 0.1, // Insulin-to-carbohydrate ratio
+    iir: 1, // Insulin-to-insulin ratio
+  }
 
-  const steadyState = model.computeSteady(patient, t);
+  const steadyState = model.computeSteady(patient, input);
 
   const derivatives: Derivatives = (t: number, x: NamedVector): NamedVector => {
-    //state = x
-    return model.computeDerivatives(t, state, patient, d, u);
+    return model.computeDerivatives(t, steadyState, patient, input);
   }
 
   model.tInit = tInit;

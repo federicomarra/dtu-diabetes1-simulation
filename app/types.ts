@@ -6,10 +6,9 @@ export type ParameterType = DefaultType
 
 export type PatientInput = {
   carbs?: number[];     // grams of carbohydrates
+  basal?: number[];   // basal insulin rate
   hir?: number;       // insulin-to-carbohydrate ratio
   iir?: number;       // insulin-to-insulin ratio
-  exercise?: number;  // exercise level
-  meal?: number;      // meal level
 }
 
 export type PatientOutput = {
