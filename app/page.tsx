@@ -10,6 +10,7 @@ const Home: NextPage = () => {
   const debug = true;
 
   const MwG = 180.1577; // Molar mass of glucose in g/mol
+  const TargetBG = 5.5; // Target blood glucose level in mmol/L
 
   const roundToDecimal = (value: number, decimals: number): number => {
     const factor = Math.pow(10, decimals);
@@ -34,7 +35,7 @@ const Home: NextPage = () => {
     return roundToDecimal(rawValue, decimals);
   }
 
-  const [conversionFactor, setConversionFactor] = useState<number>(MwG * 10);
+  const [conversionFactor, setConversionFactor] = useState<number>(MwG / 10);
 
   // SIMULATION PARAMETERS
   // Number of days for the simulation
@@ -73,6 +74,17 @@ const Home: NextPage = () => {
   const [goodGlycemia, setGoodGlycemia] = useState<number[]>([initGoodMinGlyc(), initGoodMaxGlyc()]); // Good glycemia value in mmol/L or mg/dL
   const [isGraphOld, setIsGraphOld] = useState<boolean>(false); // State to toggle between old and new graph
 
+  const convertTimeToHours = (t: number, timeStep: number): string => {
+    const totalMinutesFrom0000 = t * timeStep; // Total minutes from 00:00
+    const hours = Math.floor(totalMinutesFrom0000 / 60);
+    const minutes = roundToDecimal(totalMinutesFrom0000 % 60, 0);
+    //console.log("TIME:", t, "TimeStep:", timeStep, "Hours:", hours, "Minutes:", minutes);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  }
+
+  const convertTimeArrayToHours = (timeVect: number[], timeStep: number): string[] => {
+    return timeVect.map(t => { return convertTimeToHours(t, timeStep); });
+  }
 
 
   // UTILITY ARROW & NORMAL FUNCTIONS
@@ -356,8 +368,8 @@ const Home: NextPage = () => {
   }
 
 
-  const uIns_days = (days: number) => Array.from({length: 24 * days}, (_, i) => i % 24 < 7 ? 1.5 : i % 24 < 12 ? 1.3 : i % 24 < 20 ? 1.4 : 0);
-  const [uIns, setUIns] = useState<number[]>(uIns_days(days));
+  //const uIns_days = (days: number) => Array.from({length: 24 * days}, (_, i) => i % 24 < 7 ? 1.5 : i % 24 < 12 ? 1.3 : i % 24 < 20 ? 1.4 : 0);
+  //const [uIns, setUIns] = useState<number[]>(uIns_days(days));
   const [result, setResult] = useState<number[]>([]);
 
   const setParameter = (new_value: number, name: string) => {
@@ -529,10 +541,8 @@ const Home: NextPage = () => {
       "AG": AG_value,
       "BW": BW_value,
       "MwG": MwG,
-      "Geq": 5.55 // Equilibrium glucose concentration in mmol/L, can be adjusted
+      "Geq": TargetBG // Equilibrium glucose concentration in mmol/L, can be adjusted
     };
-
-    console.log(convertGlycemia(100, false));
 
     const dCho = getDCho(days, timeStep);
     const uIns = getUIns(days, timeStep);
@@ -1538,7 +1548,9 @@ const Home: NextPage = () => {
 
                 //console.log("DayIndex:", dayIndex, "\nDayStart:", dayStart, "DayEnd:", dayEnd, "PointsPerDay:", pointsPerDay, "\nResult Length:", result.length);
 
+                const dayMinutes = Array.from({length: pointsPerDay}, (_, i) => (i * timeStep));
                 const dayHours = Array.from({length: pointsPerDay}, (_, i) => (i * timeStep / 60));
+                const dayTimeString = convertTimeArrayToHours(dayHours, timeStep);
                 const dayResult = result.slice(dayStart, dayEnd);
 
                 return (
@@ -1552,7 +1564,8 @@ const Home: NextPage = () => {
                         label: "Time (h)",
                         fill: "var(--primary)",
                         min: 0,
-                        max: 24
+                        max: 24,
+                        scaleType: "linear"
                       }]}
                       yAxis={[{
                         data: dayResult,
@@ -1564,7 +1577,6 @@ const Home: NextPage = () => {
                         curve: "catmullRom",
                         data: dayResult.map((value: number) => (value ? value : null)),
                       }]}
-
                       width={1050}
                       height={350}
                     />
