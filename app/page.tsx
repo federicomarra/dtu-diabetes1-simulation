@@ -528,8 +528,11 @@ const Home: NextPage = () => {
       "tauG": TauG_value * timeStep,
       "AG": AG_value,
       "BW": BW_value,
-      "MwG": MwG
+      "MwG": MwG,
+      "Geq": 5.55 // Equilibrium glucose concentration in mmol/L, can be adjusted
     };
+
+    console.log(convertGlycemia(100, false));
 
     const dCho = getDCho(days, timeStep);
     const uIns = getUIns(days, timeStep);

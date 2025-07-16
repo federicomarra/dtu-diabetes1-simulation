@@ -1,5 +1,5 @@
 import SolverRK4 from "@/app/SolverRK4"
-import { NamedVector, PatientInput } from "@/app/types"
+import {ModelType, NamedVector, PatientInput} from "@/app/types"
 import { Derivatives } from "@/app/Solver"
 import { HovorkaModelODE } from "@/app/HovorkaModelODE";
 
@@ -22,7 +22,8 @@ export function Simulator(modelName: string, controllerName: string, d: number[]
   const steadyState = model.computeSteady(patient, t);
 
   const derivatives: Derivatives = (t: number, x: NamedVector): NamedVector => {
-    return model.computeDerivatives(t, state, patient);
+    //state = x
+    return model.computeDerivatives(t, state, patient, d, u);
   }
 
   model.tInit = tInit;
@@ -33,10 +34,11 @@ export function Simulator(modelName: string, controllerName: string, d: number[]
   const glycemiaHistory: number[] = [];
 
   while (t <= tEnd) {
-    const vector_at_t = solver.solve(derivatives, tInit, steadyState, tEnd)
-    vector_at_t.glyc = model.computeOutput(vector_at_t)
+    let vector_at_t: NamedVector = solver.solve(derivatives, tInit, xInit, tEnd)
+    const glyc_at_t: number= model.computeOutput(vector_at_t, patient)
+    vector_at_t.glyc = glyc_at_t; // Add glycemia to the state vector IS THIS NEEDED?
     stateHistory.push(vector_at_t);
-    glycemiaHistory.push(model.computeOutput(vector_at_t));
+    glycemiaHistory.push(glyc_at_t);
     t += 1;
   }
 
