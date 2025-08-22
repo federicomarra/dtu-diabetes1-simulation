@@ -1,23 +1,12 @@
 export function Controller(name: string, controllerParameters: any, timeStep: number, desired: number, y: number[]) {
 
-  const param: any = (name: string) => {
-    switch (name.toUpperCase()) {
-      case "P":
-      case "PD":
-      case "PI":
-      case "PID":
-        return controllerParameters.PID;
-      case "EKF":
-        return controllerParameters.EKF;
-      case "MPC":
-        return controllerParameters.MPC;
-      default:
-        return {};
-    }
-  }
+  const param = name === "P" || name === "PD" || name === "PI" || name === "PID" ? controllerParameters.PID :
+    (name === "EKF" ? controllerParameters.EFK :
+      (name === "MPC" ? controllerParameters.MPC : {}));
+
 
   const n: number = y.length;
-  const err: number = desired - y[n - 1];
+  const err: number = n > 0 ? desired - y[n - 1] : 0;
   const errPrev: number = n > 1 ? desired - y[n - 2] : 0;
 
   let u: number = 0;
