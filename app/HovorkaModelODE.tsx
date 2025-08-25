@@ -2,6 +2,12 @@ import {Component} from "react";
 import {ModelType, NamedVector, ParameterType, PatientInput, PatientOutput} from "@/app/types";
 import {Derivatives} from "@/app/Solver";
 
+/**
+ * Represents the Ordinary Differential Equation (ODE) implementation of the Hovorka model,
+ * an approach commonly utilized for glucose-insulin simulation in diabetes management systems.
+ * This class includes methods to manage state initialization, compute insulin infusion rates,
+ * steady-state dynamics, and glucose-insulin kinetics over time.
+ */
 export class HovorkaModelODE extends Component {
 
   tInit: number = 0; // initial time
@@ -70,8 +76,61 @@ export class HovorkaModelODE extends Component {
     return Seq / tauI / 1000 * 60
   }
 
-  computeSteady(patient: NamedVector, input: PatientInput): NamedVector {
-    /** extractions of parameters */
+  /**
+   * Computes the steady-state of the Hovorka ODE model for a given patient profile.
+   *
+   * What it does:
+   * - Derives the basal insulin infusion rate (IIR) needed to maintain the target glycemia Geq by
+   *   calling computeIIR(patient). The IIR is interpreted in U/hour.
+   * - Converts that basal infusion into steady-state subcutaneous insulin stores (S1, S2 = Seq),
+   *   plasma insulin (Ieq), and insulin actions (x1eq, x2eq, x3eq).
+   * - Solves the algebraic steady-state relations of the glucose subsystem to obtain Q1eq and Q2eq
+   *   under the assumption of no active meal absorption (D1 = D2 = 0 at steady state).
+   *
+   * Inputs and units:
+   * - patient: NamedVector containing at least the following fields (units in brackets)
+   *   - BW [kg]                body weight
+   *   - VI [L/kg]              insulin distribution volume per kg
+   *   - ke [1/min]             insulin elimination from plasma
+   *   - F01 [mmol/kg/min]      non–insulin-dependent glucose flux
+   *   - EGP0 [mmol/kg/min]     endogenous glucose production at zero insulin
+   *   - k12 [1/min]            glucose transfer rate between compartments
+   *   - SI1 [1/(min·(mU/L))]   insulin sensitivity: distribution/transport
+   *   - SI2 [1/(min·(mU/L))]   insulin sensitivity: disposal
+   *   - SI3 [1/(mU/L)]         insulin sensitivity: EGP
+   *   - tauI [min]             time-to-maximum insulin absorption
+   *   - VG [L/kg]              glucose distribution volume (used indirectly via computeIIR)
+   *   - Geq [mmol/L]           target/desired glycemia at equilibrium
+   * - input: PatientInput (present for API symmetry). The steady-state calculation derives the
+   *   basal IIR internally from patient parameters and Geq; it does not use input.iir.
+   *
+   * Returned state (NamedVector) and units:
+   * - Q1 [mmol]  glucose in accessible (blood) compartment at steady state
+   * - Q2 [mmol]  glucose in non-accessible (peripheral) compartment at steady state
+   * - S1 [mU]    subcutaneous insulin compartment 1
+   * - S2 [mU]    subcutaneous insulin compartment 2
+   * - I  [mU/L]  plasma insulin
+   * - x1 [1/min] insulin action on glucose transport
+   * - x2 [1/min] insulin action on glucose disposal
+   * - x3 [1/min] insulin action on endogenous glucose production
+   * - D1 [mmol]  stomach glucose content (0 at steady state)
+   * - D2 [mmol]  intestinal glucose content (0 at steady state)
+   *
+   * Assumptions and requirements:
+   * - No ongoing carbohydrate absorption at steady state: D1 = D2 = 0.
+   * - Positive, physiologically meaningful parameters: tauI > 0, ke > 0, VI > 0.
+   * - Insulin sensitivities and rates should be non-negative. Division by SI2 (and combinations
+   *   involving SI1, SI2) occurs; ensure they are not zero to avoid singularities.
+   * - F01eq is capped linearly for Geq < 4.5 mmol/L and saturates above, as per the Hovorka model.
+   * - computeIIR(patient) estimates the basal IIR from Geq; if a valid equilibrium for insulin
+   *   cannot be found upstream, the resulting Seq/Ieq may be zero, which propagates to x1..x3.
+   *
+   *
+   * @param patient Patient physiological parameters and model constants (see fields above).
+   * @param input   PatientInput; present for signature compatibility, not used to set basal IIR.
+   * @returns NamedVector containing the steady-state values for all state variables.
+   */
+  computeSteady(patient: NamedVector, input: PatientInput): NamedVector {    /** extractions of parameters */
     const F01 = patient.F01;  // non-insulin-dependent glucose ﬂux in mmol/kg/min
     const BW = patient.BW; // body weight in kg
     const VI = patient.VI * BW; // insulin distribution volume
@@ -86,14 +145,15 @@ export class HovorkaModelODE extends Component {
     /** equilibrium blood glucose levels in mmol/l */
     const Geq = patient.Geq
     const F01eq = F01 * BW * Math.min(Geq / 4.5, 1)
-    //const Seq = (input.iir || 0) * tauI * 1000 / 60
-    const Seq = this.computeIIR(patient) * tauI * 1000 / 60; // insulin absorption in mU/min
+    const Seq = (input.iir || 0) * tauI * 1000 / 60
+    //const Seq = this.computeIIR(patient) * tauI * 1000 / 60; // insulin absorption in mU/min
     const Ieq = Seq / (tauI * (VI * BW) * ke)
     const x1eq = SI1 * Ieq
     const x2eq = SI2 * Ieq
     const x3eq = SI3 * Ieq
     const Q2eq = -(F01eq - EGP0 * BW * (1 - x3eq)) / x2eq
-    const Q1eq = Q2eq / x1eq * (k12 + x2eq)
+    //const Q1eq = Q2eq / x1eq * (k12 + x2eq)
+    const Q1eq = patient.Geq * patient.BW * patient.VG
 
       return {
         Q1: Q1eq,   // glucose in blood
@@ -110,7 +170,7 @@ export class HovorkaModelODE extends Component {
   }
 
   computeDerivatives(t: number, state: NamedVector, patient: NamedVector, input: PatientInput): NamedVector {
-    console.log(state)
+    //console.log("Pre state:", state)
     /** extractions of parameters */
     const BW = patient.BW; // body weight in kg
 
@@ -122,7 +182,7 @@ export class HovorkaModelODE extends Component {
     const ka1 = patient.ka1;
     const VG = patient.VG * BW;
 
-    const tauD = patient.tauD; // maximum glucose absorption time
+    const tauG = patient.tauG; // maximum glucose absorption time
 
     const F01 = patient.F01;   // glucose appearance rate in mmol/min
     const EGP0 = patient.EGP0 * BW; // endogenous glucose production extrapolated to zero insulin concentration
@@ -137,10 +197,9 @@ export class HovorkaModelODE extends Component {
 
 
     /** extractions of input */
-    const IIR = (patient.iir || 0) * 1000 / 60;    // insulin infusion rate in mU/min
-    // @ts-ignore
-    const D = (input?.carbs[t]) ? (1000 / MwG) * (input.carbs[t] || 0) : 0; // eq:2.10 (meal ingestion in mmol/min)
-    const G = state.Q1 / (VG);          // eq:2.3 (glucose in mmol/l)
+    const IIR = (input.u[t] || 0) * 1000;    // insulin infusion rate in mU/min
+    const D = (input.carbs[t] || 0) * (1000 / MwG) * 10000000; // carbohydrate intake in
+    const G = state.Q1 / (VG);          // eq:2.3 (glucose concentration in mmol/l)
 
     /** extractions of state model nodes */
     const S1 = state.S1;
@@ -159,9 +218,9 @@ export class HovorkaModelODE extends Component {
 
 
     /** cho absorption */
-    const dD1 = (AG * D) - ((1 / tauD) * D1);                             // eq:2.8a
-    const dD2 = (1 / tauD) * (D1 - D2);                                   // eq:2.8b
-    const UG = (1 / tauD) * D2;                                           // eq:2.9
+    const dD1 = (AG * D) - ((1 / tauG) * D1);                             // eq:2.8a
+    const dD2 = (1 / tauG) * (D1 - D2);                                   // eq:2.8b
+    const UG = (1 / tauG) * D2;                                           // eq:2.9
 
     /** insulin absorption */
     const dS1 = IIR - ((1 / tauI) * S1);                                  // eq:2.11a
@@ -172,7 +231,7 @@ export class HovorkaModelODE extends Component {
     /** glucose */
     const F01c = G >= 4.5 ? F01 : F01 * G / 4.5;                          // eq:2.4
     const FR = G >= 9 ? 0.003 * (G - 9) * VG : 0;                         // eq:2.5
-    const dQ1 = UG + EGP0 * (1 - x3) + k12 * Q2 - F01c - FR - (x1 * Q1);  // eq:2.1
+    const dQ1 = UG - (EGP0 * (1 - x3)) + (k12 * Q2) - F01c - FR - (x1 * Q1);  // eq:2.1
     const dQ2 = x1 * Q1 - (k12 + x2) * Q2;                                // eq:2.2
 
     /** insulin action */
@@ -183,7 +242,7 @@ export class HovorkaModelODE extends Component {
     const dx2 = kb2 * I - ka2 * x2;                                       // eq:2.7b
     const dx3 = kb3 * I - ka3 * x3;                                       // eq:2.7c
 
-    const vect: NamedVector = {
+    const drift: NamedVector = {
       // glucose subsystem
       Q1: dQ1,
       Q2: dQ2,
@@ -203,10 +262,9 @@ export class HovorkaModelODE extends Component {
       D2: dD2
     }
 
-    //console.log("State vector at dt=", t, ": ", vect);
+    //console.log("Drift vector at t=", t, ": ", drift);
 
-    //return (t, vect) => vect
-    return vect
+    return drift
 
   }
 

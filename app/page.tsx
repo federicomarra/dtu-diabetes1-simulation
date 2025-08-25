@@ -1,13 +1,13 @@
 'use client'
 
-import {NextPage} from "next";
-import {useState} from "react";
-import {LineChart} from '@mui/x-charts/LineChart';
-import {Simulator} from "@/app/Simulator";
+import { NextPage } from "next";
+import { useState  } from "react";
+import { LineChart } from '@mui/x-charts/LineChart';
+import { Simulator } from "@/app/Simulator";
 
 const Home: NextPage = () => {
 
-  const debug = true;
+  const debug = false;
 
   const MwG = 180.1577; // Molar mass of glucose in g/mol
   const TargetBG = 5.5; // Target blood glucose level in mmol/L
@@ -23,7 +23,7 @@ const Home: NextPage = () => {
     const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
     let rawValue = z0 * stdDev + mean;
     if (distributionName === "exp") {
-      rawValue = Math.log(rawValue);
+      rawValue = Math.log(mean);//Math.log(rawValue);
     } else if (distributionName === "div" && rawValue !== 0) {
       rawValue = 1 / rawValue; // Inverse transformation for division
     } else if (distributionName === "divln") {
@@ -43,7 +43,7 @@ const Home: NextPage = () => {
   const defaultDays = possibleDays[0]; // Default number of days for the simulation
   const [days, setDays] = useState<number>(defaultDays);
   const [oldDays, setOldDays] = useState<number>(defaultDays); // State to keep track of the old number of days
-  const possibleTimeSteps = [1, 5, 10, 30, 60]; // Possible time steps in minutes
+  const possibleTimeSteps = [5, 10, 15, 30, 60]; // Possible time steps in minutes
   const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 1]; // Default time step in minutes
   const [timeStep, setTimeStep] = useState<number>(defaultTimeStep); // Time step in minutes
   const timeLength_days = (days: number, timeStep: number) => days * 24 * 60 / timeStep + 1; // Total time length in minutes, +1 to include the 24:00
@@ -55,12 +55,23 @@ const Home: NextPage = () => {
   const defaultModel = possibleModels[0]; // Default model
   const [modelName, setModelName] = useState<string>(defaultModel); // Initialize the model
 
-  const possibleControllers = ["P"]//, "PD", "PID"]; // Possible controllers
-  const defaultController = possibleControllers[0]; // Default controller
+  const possibleControllers = ["P", "PD", "PI", "PID"] //, "EKF", "MPC"]; // Possible controllers
+  const defaultController = possibleControllers[3]; // Default controller
   const [controllerName, setControllerName] = useState<string>(defaultController); // Initialize the controller
   const [controllerKp, setControllerKp] = useState<number>(0.2); // Proportional gain for P controller
   const [controllerKd, setControllerKd] = useState<number>(0.7); // Derivative gain for PD controller
   const [controllerKi, setControllerKi] = useState<number>(0.3); // Integral gain for PID controller
+  const [controllerEkfA, setControllerEkfA] = useState<number>(1);  // Ekf state transition scalar
+  const [controllerEkfB, setControllerEkfB] = useState<number>(1);  // Ekf control-input scalar
+  const [controllerEkfC, setControllerEkfC] = useState<number>(1);  // Ekf measurement scalar
+  const [controllerEkfQ, setControllerEkfQ] = useState<number>(1e-3);   // Ekf process noise variance
+  const [controllerEkfR, setControllerEkfR] = useState<number>(0.05 * 0.05);  // Ekf measurement noise variance
+  const [controllerEkfP, setControllerEkfP] = useState<number>(1);  // Ekf initial error covariance
+  const [controllerEkfKp, setControllerEkfKp] = useState<number>(0.05);   // Ekf Proportional gain applied to the state estimate
+  const [controllerMpcHorizon, setControllerMpcHorizon] = useState<number>(10); // MPC prediction horizon
+  const [controllerMpcControlHorizon, setControllerMpcControlHorizon] = useState<number>(controllerMpcHorizon / 2);  // MPC steps controlled
+  const [controllerMpcQ, setControllerMpcQ] = useState<number>(1);  // MPC tracking wight
+  const [controllerMpcR, setControllerMpcR] = useState<number>(0.1);  // MPC control effor weight
 
   // Glycemia unit: false for mmol/L, true for mg/dL
   const [unitMgDl, setUnitMgDl] = useState<boolean>(false); // false for mmol/L, true for mg/dL
@@ -402,6 +413,41 @@ const Home: NextPage = () => {
         case "Ki":
           setControllerKi(new_value)
           break;
+        case "EkfA":
+          setControllerEkfA(new_value)
+          break;
+        case "EkfB":
+          setControllerEkfB(new_value)
+          break;
+        case "EkfC":
+          setControllerEkfC(new_value)
+          break;
+        case "EkfQ":
+          setControllerEkfQ(new_value)
+          break;
+        case "EkfR":
+          setControllerEkfR(new_value)
+          break;
+        case "EkfP":
+          setControllerEkfP(new_value)
+          break;
+        case "EkfKp":
+          setControllerEkfKp(new_value)
+          break;
+        case "MpcHorizon":
+          setControllerMpcHorizon(new_value)
+          const middle_value = roundToDecimal(new_value / 2, 0)
+          setControllerMpcControlHorizon(middle_value <= new_value ? middle_value : new_value)
+          break;
+        case "MpcControlHorizon":
+          setControllerMpcControlHorizon(new_value)
+          break;
+        case "MpcQ":
+          setControllerMpcQ(new_value)
+          break;
+        case "MpcR":
+          setControllerMpcR(new_value)
+          break;
         case "EGP0":
           setEGP0_value(new_value);
           break;
@@ -518,9 +564,35 @@ const Home: NextPage = () => {
       "modelName": modelName,
       "controller": {
         "name": controllerName,
-        "Kp": controllerKp,
-        "Kd": controllerKd,
-        "Ki": controllerKi
+        "params": {
+          "min": 0,
+          "max": 15,
+          "PID": {
+            "Kp": controllerKp,
+            "Kd": controllerKd,
+            "Ki": controllerKi
+          },
+          "EKF": {
+            "A": controllerEkfA,
+            "B": controllerEkfB,
+            "C": controllerEkfC,
+            "Q": controllerEkfQ,
+            "R": controllerEkfR,
+            "P": controllerEkfP,
+            "Kp": controllerEkfKp
+          },
+          "MPC": {
+            "horizon": controllerMpcHorizon,
+            "controlHorizon": controllerMpcControlHorizon,
+            "Q": controllerMpcQ,
+            "R": controllerMpcR
+          }
+        }
+      },
+      "disturbance": {
+        //"name": disturbanceName,
+        "min": 0,
+        "max": 150
       }
     }
     const patientParams = {  // Parameters for the Patient, following Hovorka model multiplied by timeStep or divided by timeStep as needed
@@ -565,8 +637,15 @@ const Home: NextPage = () => {
       setResult(fakeResult);
        */
     } else {
-      const output = Simulator(modelName, controllerName, dCho, uIns, simulationParams, patientParams);
-      if (unitMgDl) setResult(output[0].map(glycemia => convertGlycemia(glycemia, true)));
+      const simulationRes = Simulator(modelName, controllerName, dCho, uIns, simulationParams, patientParams, TargetBG);
+      const output = simulationRes[0];
+      if (unitMgDl) {
+        setResult(output.map(glycemia => convertGlycemia(glycemia, unitMgDl)));
+      } else {
+        setResult(output);
+      }
+
+
 
       /*
       // @ts-ignore
@@ -757,7 +836,7 @@ const Home: NextPage = () => {
                 </td>
               </tr>
 
-              {(controllerName === "P" || controllerName === "PD" || controllerName === "PID" ) && (
+              {(controllerName === "P" || controllerName === "PD" || controllerName === "PI" || controllerName === "PID" ) && (
                 <tr>
                   <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller parameter <i>k</i><sub><i>p</i></sub></td>
                   <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
@@ -765,6 +844,24 @@ const Home: NextPage = () => {
                       type="number"
                       value={controllerKp}
                       onChange={(e) => setParameter(Number(e.target.value), "Kp")}
+                      min="0"
+                      max="2"
+                      step="0.01"
+                      data-np-intersection-state="observed"
+                      className="w-[6.5ch] px-1 text-left"
+                    />
+                  </td>
+                </tr>
+              )}
+
+              {(controllerName === "PI" || controllerName === "PID" ) && (
+                <tr>
+                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller parameter <i>k</i><sub><i>i</i></sub></td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                    <input
+                      type="number"
+                      value={controllerKi}
+                      onChange={(e) => setParameter(Number(e.target.value), "Ki")}
                       min="0"
                       max="2"
                       step="0.01"
@@ -793,23 +890,143 @@ const Home: NextPage = () => {
                 </tr>
               )}
 
-              {(controllerName === "PID" ) && (
-                <tr>
-                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller parameter <i>k</i><sub><i>i</i></sub></td>
-                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
-                    <input
-                      type="number"
-                      value={controllerKi}
-                      onChange={(e) => setParameter(Number(e.target.value), "Ki")}
-                      min="0"
-                      max="2"
-                      step="0.01"
-                      data-np-intersection-state="observed"
-                      className="w-[6.5ch] px-1 text-left"
-                    />
-                  </td>
-                </tr>
+              {(controllerName === "EKF") && (
+                <>
+                  <tr>
+                    <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller
+                      parameter <i>Q</i> (process noise variance)
+                    </td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                      <input
+                        type="number"
+                        value={controllerEkfQ}
+                        onChange={(e) => setParameter(Number(e.target.value), "EkfQ")}
+                        min="0.01"
+                        max="2"
+                        step="0.01"
+                        data-np-intersection-state="observed"
+                        className="w-[6.5ch] px-1 text-left"
+                      />
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller
+                      parameter <i>R</i> (measurement noise variance)
+                    </td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                      <input
+                        type="number"
+                        value={controllerEkfR}
+                        onChange={(e) => setParameter(Number(e.target.value), "EkfR")}
+                        min="0.01"
+                        max="2"
+                        step="0.01"
+                        data-np-intersection-state="observed"
+                        className="w-[6.5ch] px-1 text-left"
+                      />
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller
+                      parameter <i>P</i> (initial error covariance)
+                    </td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                      <input
+                        type="number"
+                        value={controllerEkfP}
+                        onChange={(e) => setParameter(Number(e.target.value), "EkfP")}
+                        min="0.01"
+                        max="2"
+                        step="0.01"
+                        data-np-intersection-state="observed"
+                        className="w-[6.5ch] px-1 text-left"
+                      />
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller
+                      parameter <i>K</i><sub><i>p</i></sub> (proportional gain)
+                    </td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                      <input
+                        type="number"
+                        value={controllerEkfKp}
+                        onChange={(e) => setParameter(Number(e.target.value), "EkfKp")}
+                        min="0.01"
+                        max="2"
+                        step="0.01"
+                        data-np-intersection-state="observed"
+                        className="w-[6.5ch] px-1 text-left"
+                      />
+                    </td>
+                  </tr>
+
+
+                </>)}
+
+              {(controllerName === "MPC") && (
+                <>
+                  <tr>
+                    <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller
+                      parameter MPC horizon
+                    </td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                      <input
+                        type="number"
+                        value={controllerMpcHorizon}
+                        onChange={(e) => setParameter(Number(e.target.value), "MpcHorizon")}
+                        min="1"
+                        max="50"
+                        step="1"
+                        data-np-intersection-state="observed"
+                        className="w-[6.5ch] px-1 text-left"
+                      />
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller
+                      parameter <i>Q</i> (MPC tracking wight)
+                    </td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                      <input
+                        type="number"
+                        value={controllerMpcQ}
+                        onChange={(e) => setParameter(Number(e.target.value), "MpcQ")}
+                        min="0.1"
+                        max="10"
+                        step="0.1"
+                        data-np-intersection-state="observed"
+                        className="w-[6.5ch] px-1 text-left"
+                      />
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Controller
+                      parameter <i>R</i> (MPC control effor weight)
+                    </td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                      <input
+                        type="number"
+                        value={controllerMpcR}
+                        onChange={(e) => setParameter(Number(e.target.value), "MpcR")}
+                        min="0.1"
+                        max="10"
+                        step="0.1"
+                        data-np-intersection-state="observed"
+                        className="w-[6.5ch] px-1 text-left"
+                      />
+                    </td>
+                  </tr>
+
+                </>
               )}
+
+
 
               </tbody>
             </table>
@@ -1477,7 +1694,7 @@ const Home: NextPage = () => {
         </div>
 
         <div className="mt-8 overflow-visible relative">
-          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Insulin Intake</h2>
+          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Basal Insulin Intake</h2>
           <div className="overflow-x-auto overflow-visible relative">
             <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
                    style={{borderColor: "var(--primary)"}}>
@@ -1584,6 +1801,17 @@ const Home: NextPage = () => {
                 );
               })}
             </div>
+            {result.length > 0 && debug && (
+              <div className="mt-4">
+                <h3 className="text-xl font-semibold">Result:</h3>
+                <ul className="list-disc list-inside">
+                  {result.map((value, index) => (
+                    <li key={index}>{value}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
           </div>)}
       </div>
 

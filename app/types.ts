@@ -5,8 +5,10 @@ export type ModelType = DefaultType
 export type ParameterType = DefaultType
 
 export type PatientInput = {
-  carbs?: number[];     // grams of carbohydrates
-  basal?: number[];   // basal insulin rate
+  carbs: number[];  // grams of carbohydrates' intake
+  basal?: number[]; // basal insulin rate
+  u: number[];      // insulin units input
+  d: number[];      // grams of carbohydrate disturbance
   hir?: number;       // insulin-to-carbohydrate ratio
   iir?: number;       // insulin-to-insulin ratio
 }
