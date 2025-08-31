@@ -1,8 +1,11 @@
-export function Controller(name: string, controllerParameters: any, timeStep: number, desired: number, y: number[]) {
+export function Controller(name: string, controllerParameters: any, timeStep: number, desired: number, y: number[], basal: number) {
 
   const param = name === "P" || name === "PD" || name === "PI" || name === "PID" ? controllerParameters.PID :
     (name === "EKF" ? controllerParameters.EFK :
       (name === "MPC" ? controllerParameters.MPC : {}));
+
+  const min: number = controllerParameters.min;
+  const max: number = controllerParameters.max;
 
   const n: number = y.length;
   const err: number = n > 0 ? y[n - 1] - desired : 0;
@@ -20,29 +23,29 @@ export function Controller(name: string, controllerParameters: any, timeStep: nu
     case "PD":  // Proportional derivative controller
     case "PI":  // Proportional integrative controller
     case "PID": // Proportional integrative derivative controller
-      // Integral sum of previous errors
-      const integral_err: number = name === "PI" || name === "PID" ? y.reduce((acc, _, i) => {
-        return acc + (y[i] - desired);
-      }, 0) : 0;
 
-      const derivative_err = name === "PD" || name === "PID" ? err - errPrev : 0;
+      // Proportional
+      const P = param.Kp * err;
 
-      //console.log(name, "integral_err:", integral_err);
-      //console.log(name, "derivative_err:", derivative_err);
+      // Integrative
+      const integral_err: number =  y.reduce((acc, _, i) => {
+        return acc + (y[i] - desired);  // Integral sum of all previous errors
+      }, 0);
+      const I = name === "PI" || name === "PID" ? param.Ki * integral_err * timeStep : 0;
 
-      u =
-        param.Kp * err +                          // Proportional
-        param.Kd * derivative_err / timeStep +    // Derivative
-        param.Ki * integral_err * timeStep;       // Integrative
+      // Derivative
+      const D = name === "PD" || name === "PID" ? param.Kd * (err - errPrev) / timeStep : 0;
+
+      u = P + I + D;
 
       break;
 
 
-    
-
     default:
       throw new Error("Controller type not recognised");
   }
+
+  u = Math.max(min, Math.min(max, u + basal));
 
   //console.log(name, "control:", u);
 

@@ -8,6 +8,7 @@ import { Simulator } from "@/app/Simulator";
 const Home: NextPage = () => {
 
   const debug = false;
+  const isSimulationFake = true;
 
   const MwG = 180.1577; // Molar mass of glucose in g/mol
   const TargetBG = 5.5; // Target blood glucose level in mmol/L
@@ -31,6 +32,7 @@ const Home: NextPage = () => {
     } else if (distributionName === "uniform") { // Uniform distribution
       rawValue = mean + (stdDev - mean) * Math.random();  // mean==min and stdDev==max
     }
+    rawValue = Math.max(step, rawValue);
     const decimals = step.toString().split(".")[1]?.length || 0; // Get the number of decimal places in the step
     return roundToDecimal(rawValue, decimals);
   }
@@ -44,7 +46,7 @@ const Home: NextPage = () => {
   const [days, setDays] = useState<number>(defaultDays);
   const [oldDays, setOldDays] = useState<number>(defaultDays); // State to keep track of the old number of days
   const possibleTimeSteps = [5, 10, 15, 30, 60]; // Possible time steps in minutes
-  const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 1]; // Default time step in minutes
+  const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 3]; // Default time step in minutes
   const [timeStep, setTimeStep] = useState<number>(defaultTimeStep); // Time step in minutes
   const timeLength_days = (days: number, timeStep: number) => days * 24 * 60 / timeStep + 1; // Total time length in minutes, +1 to include the 24:00
   const [timeLength, setTimeLength] = useState<number>(timeLength_days(days, timeStep)); // Total time length in minutes if timeStep is 1 minute
@@ -120,7 +122,7 @@ const Home: NextPage = () => {
     setMaxGlycemia(initMaxGlyc());
     setGoodGlycemia([initGoodMinGlyc(), initGoodMaxGlyc()])
     console.log(minGlycemia, maxGlycemia, goodGlycemia);
-    setResult(result.map(glycemia => convertGlycemia(glycemia, toMgDl)));
+    setOutput(output.map(glycemia => convertGlycemia(glycemia, toMgDl)));
   }
 
 
@@ -322,6 +324,8 @@ const Home: NextPage = () => {
     return repeatArray(array_to_repeat, days_to_repeat); // Repeat the array for the specified number of days
   }
 
+  const [areMealsActive, setAreMealsActive] = useState(true);
+
   // INSULIN PARAMETERS
   const ins_step = 0.05; // Step size for insulin values in U/h
   const basal_stdDev = ins_step * 2; // Standard deviation for basal insulin values
@@ -378,10 +382,21 @@ const Home: NextPage = () => {
     return repeatArray(array_to_repeat, days_to_repeat); // Repeat the array for the specified number of days
   }
 
+  const [isBasalActive, setBasalActive] = useState(true);
+
+  const getEmptyArray = (days_to_repeat: number, time_step: number) => {
+    const length_one_day = 24 * 60 / time_step + 1; // Length of one day in minutes based on timeStep
+    const array_to_repeat = new Array(length_one_day).fill(0)
+    return repeatArray(array_to_repeat, days_to_repeat); // Repeat the array for the specified number of days
+  }
 
   //const uIns_days = (days: number) => Array.from({length: 24 * days}, (_, i) => i % 24 < 7 ? 1.5 : i % 24 < 12 ? 1.3 : i % 24 < 20 ? 1.4 : 0);
   //const [uIns, setUIns] = useState<number[]>(uIns_days(days));
-  const [result, setResult] = useState<number[]>([]);
+
+  const [input, setInput] = useState<number[]>([]);
+  const [output, setOutput] = useState<number[]>([]);
+  const [states, setStates] = useState<any[]>();
+
 
   const setParameter = (new_value: number, name: string) => {
     if (name == "days"){
@@ -505,6 +520,26 @@ const Home: NextPage = () => {
     setIsGraphOld(true); // Set the graph to old state to trigger re-render
   }
 
+  const regenerateParameters = () => {
+    setEGP0_value(generateValueGivenMeanAndStdDev(EGP0_mean, EGP0_stdDev, EGP0_step));
+    setF01_value(generateValueGivenMeanAndStdDev(F01_mean, F01_stdDev, F01_step));
+    setK12_value(generateValueGivenMeanAndStdDev(K12_mean, K12_stdDev, K12_step));
+    setKa1_value(generateValueGivenMeanAndStdDev(Ka1_mean, Ka1_stdDev, Ka1_step));
+    setKa2_value(generateValueGivenMeanAndStdDev(Ka2_mean, Ka2_stdDev, Ka2_step));
+    setKa3_value(generateValueGivenMeanAndStdDev(Ka3_mean, Ka3_stdDev, Ka3_step));
+    setSI1_value(generateValueGivenMeanAndStdDev(SI1_mean, SI1_stdDev, SI1_step));
+    setSI2_value(generateValueGivenMeanAndStdDev(SI2_mean, SI2_stdDev, SI2_step));
+    setSI3_value(generateValueGivenMeanAndStdDev(SI3_mean, SI3_stdDev, SI3_step));
+    setKe_value(generateValueGivenMeanAndStdDev(Ke_mean, Ke_stdDev, Ke_step));
+    setVI_value(generateValueGivenMeanAndStdDev(VI_mean, VI_stdDev, VI_step));
+    setVG_value(generateValueGivenMeanAndStdDev(VG_mean, VG_stdDev, VG_step, "exp"));
+    setTauI_value(generateValueGivenMeanAndStdDev(TauI_mean, TauI_stdDev, TauI_step, "div"));
+    setTauG_value(generateValueGivenMeanAndStdDev(TauG_mean, TauG_stdDev, TauG_step, "divln"));
+    setAG_value(generateValueGivenMeanAndStdDev(AG_min, AG_max, AG_step, "uniform"));
+    setBW_value(generateValueGivenMeanAndStdDev(BW_min, BW_max, BW_step, "uniform"));
+    setIsGraphOld(true);
+  }
+
   const setMeal = (mealName: string, value: number) => {
     switch (mealName) {
       case "Breakfast":
@@ -613,81 +648,39 @@ const Home: NextPage = () => {
       "AG": AG_value,
       "BW": BW_value,
       "MwG": MwG,
-      "Geq": TargetBG // Equilibrium glucose concentration in mmol/L, can be adjusted
+      "Geq": TargetBG // Equilibrium glucose concentration in mmol/L, it has been set to 5.5 mmol/L
     };
 
-    const dCho = getDCho(days, timeStep);
-    const uIns = getUIns(days, timeStep);
+    const dCho: number[] = areMealsActive ? getDCho(days, timeStep) : getEmptyArray(days, timeStep);
+    const uIns: number[] = isBasalActive ? getUIns(days, timeStep) : getEmptyArray(days, timeStep);
 
+    console.log("Empty array:", uIns);
 
-    if (debug) {
+    if (isSimulationFake) {
       const total_length = days * 24 * 60 / timeStep + 1; // Length of one day in minutes based on timeStep
+      const fakeResult = [generateValueGivenMeanAndStdDev(initMinGlyc(), initMaxGlyc(), glycStep(), "uniform")];
+      for (let i = 1; i < total_length; i++) {
+        fakeResult.push(Math.max(initMinGlyc(), Math.min(initMaxGlyc(), roundToDecimal(fakeResult[i - 1] + ((Math.random() - 0.5) * glycStep() * 10), glycStep()))));
+      }
+      /*
       const fakeResult = Array.from({length: total_length}, (_, i) => {
         return generateValueGivenMeanAndStdDev(initMinGlyc(), initMaxGlyc(), glycStep(), "uniform"); // Return a random glycemia value for that hour
       });
-      setResult(fakeResult);
-      /*
-      const length_one_day = 24 * 60 / timeStep + 1; // Length of one day in minutes based on timeStep
-      const fakeGlycemiaDay = Array.from({length: length_one_day}, (_, i) => {
-        return generateValueGivenMeanAndStdDev(initMinGlyc(), initMaxGlyc(), glycStep(), "uniform"); // Return a random glycemia value for that hour
-      });
-      //console.log(fakeGlycemiaDay);
 
-      const fakeResult = repeatArray(fakeGlycemiaDay, days);
-      setResult(fakeResult);
        */
+      setOutput(fakeResult);
+
     } else {
-      const simulationRes = Simulator(modelName, controllerName, dCho, uIns, simulationParams, patientParams, TargetBG);
-      const output = simulationRes[0];
+      const simulationRes = Simulator(modelName, dCho, uIns, simulationParams, patientParams);
+      const simulationOutput = simulationRes[0];
       if (unitMgDl) {
-        setResult(output.map(glycemia => convertGlycemia(glycemia, unitMgDl)));
+        setOutput(simulationOutput.map(glycemia => convertGlycemia(glycemia, unitMgDl)));
       } else {
-        setResult(output);
+        setOutput(simulationOutput);
       }
+      setInput(simulationRes[1]);
+      setStates(simulationRes[2]);
 
-
-
-      /*
-      // @ts-ignore
-      const model = new HovorkaModel({});
-
-      const parameters = model.getParameter();
-      const MwG = parameters.MwG.value;
-      setConversionFactor(MwG / 10)
-
-      console.log("Start glycemia:", startGlycemia,  unitMgDl ? "mg/dL" : "mmol/L");
-      console.log("Time:", time);
-      console.log("Carbohydrate intake:", dCho);
-      console.log("Insulin infusion:", uIns);
-
-
-
-      const result = model.simulate(time, startGlycemia/ (unitMgDl ? MwG * 10 : 1), dCho, uIns);
-      console.log(result);
-
-       */
-      /*
-
-      // @ts-ignore
-      const model = new HovorkaModelODE({});
-      const parameters = model.getParameter();
-      const MwG = parameters.MwG.value;
-      setConversionFactor(MwG / 10);
-
-      const patient: PatientInput = {
-
-        //"Gstart": startGlycemia / (unitMgDl ? MwG * 10 : 1),
-        //"dCho": dCho,
-        //"uIns": uIns,
-      }
-
-      //const result = Simulator(days, startGlycemia/ (unitMgDl ? MwG * 10 : 1), patient, model);
-      //if (result) setResult(result[0]);
-
-       */
-
-      /*const output = Simulator(days, startGlycemia/ (unitMgDl ? MwG * 10 : 1), patient, model);
-      if (result) setResult(output[0]);*/
     }
     setIsGraphOld(false); // Set the graph to new state to trigger re-render
   }
@@ -1026,15 +1019,26 @@ const Home: NextPage = () => {
                 </>
               )}
 
-
-
               </tbody>
             </table>
           </div>
         </div>
 
         <div className="mt-8 overflow-visible relative">
-          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Patient {modelName} Parameters</h2>
+        <div className="overflow-visible relative flex justify-between items-center">
+          <h2 className="text-2xl font-semibold ml-2 overflow-visible relative">Patient Parameters</h2>
+          <button
+            onClick={regenerateParameters}
+            className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
+            style={{
+              backgroundColor: "var(--primary)",
+              color: "var(--secondary)",
+              fontSize: "16px",
+            }}
+          >
+            Regenerate parameters
+          </button>
+        </div>
           <div className="overflow-x-auto overflow-visible relative">
             <table className="min-w-full border-collapse border overflow-visible relative"
                    style={{borderColor: "var(--primary)"}}>
@@ -1653,86 +1657,89 @@ const Home: NextPage = () => {
 
         <div className="mt-8 overflow-visible relative">
           <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Carbohydrate Intake</h2>
-          <div className="overflow-x-auto overflow-visible relative">
-            <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
-                   style={{borderColor: "var(--primary)"}}>
-              <thead>
-              <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
-                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Meal</th>
-                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Time</th>
-                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value [g]</th>
-              </tr>
-              </thead>
-              <tbody className="text-center">
-
-              {carbs.map((meal, index) => (
-                <tr key={index}>
-                  <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>{meal.mealName}</td>
-                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{meal.hour}</td>
-                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
-                    <input
-                      type="number"
-                      value={
-                        meal.mealName === "Breakfast" ? breakfastValue :
-                          meal.mealName === "Lunch" ? lunchValue :
-                            meal.mealName === "Snack" ? snackValue :
-                              meal.mealName === "Dinner" ? dinnerValue : 0
-                      }
-                      onChange={(e) => setMeal(meal.mealName, Number(e.target.value))}
-                      min={0}
-                      max={150}
-                      step={carbs_step}
-                      data-np-intersection-state="observed"
-                      className="w-[5.7ch] px-1 text-right"
-                    /> g
-                  </td>
+          {areMealsActive && (
+            <div className="overflow-x-auto overflow-visible relative">
+              <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
+                     style={{borderColor: "var(--primary)"}}>
+                <thead>
+                <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Meal</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Time</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value [g]</th>
                 </tr>
-              ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="text-center">
+
+                {carbs.map((meal, index) => (
+                  <tr key={index}>
+                    <td className="border px-4 py-2 font-bold"
+                        style={{borderColor: "var(--primary)"}}>{meal.mealName}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{meal.hour}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                      <input
+                        type="number"
+                        value={
+                          meal.mealName === "Breakfast" ? breakfastValue :
+                            meal.mealName === "Lunch" ? lunchValue :
+                              meal.mealName === "Snack" ? snackValue :
+                                meal.mealName === "Dinner" ? dinnerValue : 0
+                        }
+                        onChange={(e) => setMeal(meal.mealName, Number(e.target.value))}
+                        min={0}
+                        max={150}
+                        step={carbs_step}
+                        data-np-intersection-state="observed"
+                        className="w-[5.7ch] px-1 text-right"
+                      /> g
+                    </td>
+                  </tr>
+                ))}
+                </tbody>
+              </table>
+            </div>)}
         </div>
 
         <div className="mt-8 overflow-visible relative">
           <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Basal Insulin Intake</h2>
-          <div className="overflow-x-auto overflow-visible relative">
-            <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
-                   style={{borderColor: "var(--primary)"}}>
-              <thead>
-              <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
-                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Start Time</th>
-                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>End Time</th>
-                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value [U / h]</th>
-              </tr>
-              </thead>
-              <tbody className="text-center">
-
-              {basal.map((slot, index) => (
-                <tr key={index}>
-                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{slot.hour_start}</td>
-                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{slot.hour_end}</td>
-                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
-                    <input
-                      type="number"
-                      value={
-                        slot.hour_start === "0" + basal_hour_starts[0] + ":00" ? basal00 :
-                          slot.hour_start === "0" + basal_hour_starts[1] + ":00" ? basal08 :
-                            slot.hour_start === basal_hour_starts[2] + ":00" ? basal12 :
-                              slot.hour_start === basal_hour_starts[3] + ":00" ? basal20 : 0
-                      }
-                      onChange={(e) => setBasal(slot.hour_start, Number(e.target.value))}
-                      min={0}
-                      max={2.5}
-                      step={ins_step}
-                      data-np-intersection-state="observed"
-                      className="w-[6.7ch] px-1 text-left"
-                    /> U / h
-                  </td>
+          {isBasalActive && (
+            <div className="overflow-x-auto overflow-visible relative">
+              <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
+                     style={{borderColor: "var(--primary)"}}>
+                <thead>
+                <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Start Time</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>End Time</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Value [U / h]</th>
                 </tr>
-              ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="text-center">
+
+                {basal.map((slot, index) => (
+                  <tr key={index}>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{slot.hour_start}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{slot.hour_end}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                      <input
+                        type="number"
+                        value={
+                          slot.hour_start === "0" + basal_hour_starts[0] + ":00" ? basal00 :
+                            slot.hour_start === "0" + basal_hour_starts[1] + ":00" ? basal08 :
+                              slot.hour_start === basal_hour_starts[2] + ":00" ? basal12 :
+                                slot.hour_start === basal_hour_starts[3] + ":00" ? basal20 : 0
+                        }
+                        onChange={(e) => setBasal(slot.hour_start, Number(e.target.value))}
+                        min={0}
+                        max={2.5}
+                        step={ins_step}
+                        data-np-intersection-state="observed"
+                        className="w-[6.7ch] px-1 text-left"
+                      /> U / h
+                    </td>
+                  </tr>
+                ))}
+                </tbody>
+              </table>
+            </div>)}
         </div>
 
         <div className="mt-8 overflow-visible relative">
@@ -1740,18 +1747,18 @@ const Home: NextPage = () => {
             onClick={handleExecute}
             className="mt-4 px-4 py-2.5 text-base font-extrabold rounded-full w-full cursor-pointer"
             style={{
-              backgroundColor: isGraphOld && result.length > 0 ? "var(--warning)" : "var(--primary)",
+              backgroundColor: isGraphOld && output.length > 0 ? "var(--warning)" : "var(--primary)",
               color: "var(--secondary)",
               fontSize: "22px",
             }}
           >
-            Simulate{isGraphOld && result.length > 0 ? " again (what you see now is an old graph)" : ""}
+            Simulate{isGraphOld && output.length > 0 ? " again (what you see now is an old graph)" : ""}
           </button>
         </div>
 
-        {result.length > 0 && (
+        {output.length > 0 && (
           <div className="mt-8 overflow-visible relative">
-            <h2 className="text-2xl font-semibold mt-8 mb-4 ml-2">Simulation Results{debug ? " (now the simulation outputs only random values)" : ""}<span
+            <h2 className="text-2xl font-semibold mt-8 mb-4 ml-2">Simulation Results{isSimulationFake ? " (now the simulation outputs only random values)" : ""}<span
               style={{color: "var(--warning)"}}>{isGraphOld ? "*" : ""}</span></h2>
             <div className="overflow-x-auto" style={{backgroundColor: "var(--snow-white)", borderRadius: "26.5px"}}>
               {Array.from({length: days}).map((_, dayIndex) => {
@@ -1763,12 +1770,12 @@ const Home: NextPage = () => {
                 const dayStart = dayIndex * pointsPerDay - (dayIndex == 0 ? 0 : dayIndex);
                 const dayEnd = (dayIndex + 1) * pointsPerDay - (dayIndex == 0 ? 0 : dayIndex);
 
-                //console.log("DayIndex:", dayIndex, "\nDayStart:", dayStart, "DayEnd:", dayEnd, "PointsPerDay:", pointsPerDay, "\nResult Length:", result.length);
+                //console.log("DayIndex:", dayIndex, "\nDayStart:", dayStart, "DayEnd:", dayEnd, "PointsPerDay:", pointsPerDay, "\nResult Length:", output.length);
 
                 const dayMinutes = Array.from({length: pointsPerDay}, (_, i) => (i * timeStep));
                 const dayHours = Array.from({length: pointsPerDay}, (_, i) => (i * timeStep / 60));
                 const dayTimeString = convertTimeArrayToHours(dayHours, timeStep);
-                const dayResult = result.slice(dayStart, dayEnd);
+                const dayResult = output.slice(dayStart, dayEnd);
 
                 return (
                   <div key={dayIndex} className="mb-8 overflow-visible relative">
@@ -1801,11 +1808,11 @@ const Home: NextPage = () => {
                 );
               })}
             </div>
-            {result.length > 0 && debug && (
+            {output.length > 0 && debug && (
               <div className="mt-4">
-                <h3 className="text-xl font-semibold">Result:</h3>
+                <h3 className="text-xl font-semibold">Results:</h3>
                 <ul className="list-disc list-inside">
-                  {result.map((value, index) => (
+                  {output.map((value, index) => (
                     <li key={index}>{value}</li>
                   ))}
                 </ul>
@@ -1818,7 +1825,7 @@ const Home: NextPage = () => {
       <div className="mt-8 overflow-visible relative"></div>
 
       <footer
-        className="absolute mt-8 bottom-4 right-4 text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+        className="absolute mt-8 bottom-4 right-4 text-sm text-gray-500 hover:text-gray-700 cursor-alias"
         style={{borderColor: "var(--primary)", color: "var(--primary)"}}
         onClick={() => window.open('https://github.com/federicomarra', '_blank', 'noopener,noreferrer')}
       >

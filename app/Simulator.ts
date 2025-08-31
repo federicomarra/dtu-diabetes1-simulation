@@ -4,8 +4,7 @@ import { Derivatives } from "@/app/Solver"
 import { HovorkaModelODE } from "@/app/HovorkaModelODE";
 import { Controller } from "@/Controller";
 
-export function Simulator(modelName: string, controllerName: string, meals: number[], basal: number[], simParams: any, patient: any, startGlyc: number): [number[], number[], NamedVector[]] {
-//export function Simulator(days: number, Gstart: number, patient: PatientInput, model:HovorkaModelODE): [number[], NamedVector[]] {
+export function Simulator(modelName: string, carbs: number[], basal: number[], simParams: any, patient: any): [number[], number[], NamedVector[]] {
 
   // Initialize simulation parameters
   const timeArray = simParams.time; // Time array in minutes
@@ -23,7 +22,7 @@ export function Simulator(modelName: string, controllerName: string, meals: numb
   const model = new HovorkaModelODE(tInit);
 
   let input: PatientInput = {
-    carbs: meals, // Carbohydrate intake in grams
+    carbs: carbs, // Carbohydrate intake in grams
     basal: basal, // Basal insulin rate in U/min
     u: new Array(basal.length).fill(0),   // Insulin input intake after control, but initialized to zeros
     d: new Array(basal.length).fill(0),   // Disturbance carbohydrate intake after control, but initialized to zeros
@@ -41,7 +40,6 @@ export function Simulator(modelName: string, controllerName: string, meals: numb
 
   let x_t: NamedVector = steadyState;
 
-  let u_t: number = 0;
   let d_t: number = 0;
 
   const stateHistory: NamedVector[] = [];
@@ -50,19 +48,16 @@ export function Simulator(modelName: string, controllerName: string, meals: numb
 
   while (t <= tEnd) {
     // Control computation
-    const controlU = Controller(simParams.controller.name, simParams.controller.params, tStep, patient.Geq-3, outputHistory);
-    const basal_t = input.basal ? input.basal[t] : 0;
-    console.log(`basal(${t})=${basal_t}, controlU=${controlU}`)
-    //u_t = Math.max(simParams.controller.params.min, Math.min(simParams.controller.params.max, controlU + basal_t));
-    u_t = Math.max(simParams.controller.params.min, controlU + basal_t);
+    const u_t = Controller(simParams.controller.name, simParams.controller.params, tStep, patient.Geq, outputHistory, input.basal[t]);
     input.u[t] = u_t;
-    console.log(`u(${t})=${u_t}`)
+    //console.log(`u(${t})=${u_t}`)
 
     // Disturbance computation
-    const disturbanceD = simParams.disturbance.params;
+    const disturbanceD: number = 0;
     const carbs_t = input.carbs[t] || 0;
     d_t = Math.max(simParams.disturbance.min, Math.min(simParams.disturbance.max, disturbanceD + carbs_t));
     input.d[t] = d_t;
+    //console.log(`d(${t})=${d_t}`)
 
     // State computation
     const derivatives: Derivatives = (t: number, x: NamedVector): NamedVector => {
@@ -71,7 +66,7 @@ export function Simulator(modelName: string, controllerName: string, meals: numb
     x_t = solver.solve(derivatives, tInit, xInit, t);
 
     // Output computation
-    const y_t: number= model.computeOutput(x_t, patient);
+    const y_t: number = model.computeOutput(x_t, patient);
 
     // History saving
     stateHistory.push(x_t);
