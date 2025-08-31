@@ -1,4 +1,4 @@
-import {ModelType, NamedVector, timesScalar, vectorSum} from '@/app/types'
+import { NamedVector, timesScalar, vectorSum } from '@/app/types'
 import Solver, { Derivatives } from '@/app/Solver'
 
 const MS_PER_MIN = 60e3

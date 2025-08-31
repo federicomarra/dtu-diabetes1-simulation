@@ -1,8 +1,8 @@
 import SolverRK4 from "@/app/SolverRK4"
 import { ModelType, NamedVector, PatientInput, vectorSum } from "@/app/types"
 import { Derivatives } from "@/app/Solver"
-import { HovorkaModelODE } from "@/app/HovorkaModelODE";
-import { Controller } from "@/Controller";
+import { HovorkaModel } from "@/app/HovorkaModel";
+import { Controller } from "@/app/Controller";
 
 export function Simulator(modelName: string, carbs: number[], basal: number[], simParams: any, patient: any): [number[], number[], NamedVector[]] {
 
@@ -19,7 +19,7 @@ export function Simulator(modelName: string, carbs: number[], basal: number[], s
     console.error("Model", modelName, "not supported");
   }
 
-  const model = new HovorkaModelODE(tInit);
+  const model = new HovorkaModel(tInit);
 
   let input: PatientInput = {
     carbs: carbs, // Carbohydrate intake in grams
@@ -53,7 +53,7 @@ export function Simulator(modelName: string, carbs: number[], basal: number[], s
     //console.log(`u(${t})=${u_t}`)
 
     // Disturbance computation
-    const disturbanceD: number = 0;
+    const disturbanceD: number = 0; // cause it is an ODE and not SDE solver
     const carbs_t = input.carbs[t] || 0;
     d_t = Math.max(simParams.disturbance.min, Math.min(simParams.disturbance.max, disturbanceD + carbs_t));
     input.d[t] = d_t;

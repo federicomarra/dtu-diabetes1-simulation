@@ -1,5 +1,3 @@
-import {number} from "prop-types";
-
 export type ModelType = DefaultType
 
 export type ParameterType = DefaultType
