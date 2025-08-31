@@ -40,23 +40,25 @@ This project has been developed with version `15.2.0`, but any newer should stil
 
 To run the project locally on your computer:
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/federicomarra/dtu-diabetes1-simulation.git
-   cd dtu-diabetes1-simulation
-   ```
+1. **Clone the repository from GitHub**
+   1. Clone via terminal with the commands:
+      ```bash
+      git clone https://github.com/federicomarra/dtu-diabetes1-simulation.git
+      cd dtu-diabetes1-simulation
+      ```
+   1. Or [download the project here](https://github.com/federicomarra/dtu-diabetes1-simulation/archive/refs/heads/main.zip), unzip it and open the terminal in the folder.
 
-2. Install dependencies:
+2. **Install dependencies:**
    ```bash
    npm install
    ```
 
-3. Run the development server:
+3. **Run the development server:**
    ```bash
    npm run dev
    ```
 
-4. Open your browser and navigate to: **[http://localhost:3000](http://localhost:3000)**
+4. **Open your browser and navigate to: [http://localhost:3000](http://localhost:3000)**
 
 ## Credits
 
