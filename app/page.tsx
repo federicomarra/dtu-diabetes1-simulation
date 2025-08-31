@@ -4,7 +4,7 @@ import { NextPage } from "next";
 import { useState  } from "react";
 import { LineChart } from '@mui/x-charts/LineChart';
 import { Simulator } from "@/app/Simulator";
-import { FormControlLabel, FormGroup, Switch } from "@mui/material";
+import { Fade, FormControlLabel, FormGroup, Switch, Tooltip} from "@mui/material";
 
 const Home: NextPage = () => {
 
@@ -33,7 +33,9 @@ const Home: NextPage = () => {
     } else if (distributionName === "uniform") { // Uniform distribution
       rawValue = mean + (stdDev - mean) * Math.random();  // mean==min and stdDev==max
     }
-    rawValue = Math.max(step, rawValue);
+    if (rawValue < step) {
+      rawValue = mean + ((Math.random() - 0.5) * 10 * step);
+    }
     const decimals = step.toString().split(".")[1]?.length || 0; // Get the number of decimal places in the step
     return roundToDecimal(rawValue, decimals);
   }
@@ -136,7 +138,6 @@ const Home: NextPage = () => {
   const [EGP0_value, setEGP0_value] = useState(generateValueGivenMeanAndStdDev(EGP0_mean, EGP0_stdDev, EGP0_step)); // EGP0 initial value in mmol/min/kg
   const EGP0_unit = "mmol / kg / min"; // EGP0 unit
   const EGP0_description = "Endogenous glucose production rate is the rate at which glucose is produced by the liver in the absence of food intake or insulin stimulation. It is a key parameter in glucose metabolism and regulation.";
-  const [EGP0_hover, setEGP0_hover] = useState(false); // EGP0 hover state for tooltip
 
   // F01: Insulin-independent glucose flux
   const [F01_mean, setF01_mean] = useState(0.0097); // F01 mean value in mmol/kg/min
@@ -145,7 +146,6 @@ const Home: NextPage = () => {
   const [F01_value, setF01_value] = useState(generateValueGivenMeanAndStdDev(F01_mean, F01_stdDev, F01_step)); // F01 initial value in mmol/kg/min
   const F01_unit = "mmol / kg / min"; // F01 unit
   const F01_description = "Insulin-independent glucose flux represents the amount of glucose uptake that occurs without insulin influence.";
-  const [F01_hover, setF01_hover] = useState(false); // F01 hover state for tooltip
 
   // K12: Transfer rate between compartments
   const [K12_mean, setK12_mean] = useState(0.0649); // K12 mean value in min^-1
@@ -154,7 +154,6 @@ const Home: NextPage = () => {
   const [K12_value, setK12_value] = useState(generateValueGivenMeanAndStdDev(K12_mean, K12_stdDev, K12_step)); // K12 initial value in min^-1
   const K12_unit = "min⁻¹"; // K12 unit
   const K12_description = "Transfer rate between the accessible and non-accessible glucose compartments.";
-  const [K12_hover, setK12_hover] = useState(false); // K12 hover state for tooltip
 
   // Ka1: Insulin absorption rate
   const [Ka1_mean, setKa1_mean] = useState(0.0055); // Ka1 mean value in min^-1
@@ -163,7 +162,6 @@ const Home: NextPage = () => {
   const [Ka1_value, setKa1_value] = useState(generateValueGivenMeanAndStdDev(Ka1_mean, Ka1_stdDev, Ka1_step)); // Ka1 initial value in min^-1
   const Ka1_unit = "min⁻¹"; // Ka1 unit
   const Ka1_description = "Rate constant for insulin absorption from the subcutaneous tissue.";
-  const [Ka1_hover, setKa1_hover] = useState(false); // Ka1 hover state for tooltip
 
   // Ka2: Insulin absorption rate
   const [Ka2_mean, setKa2_mean] = useState(0.0683); // Ka2 mean value in min^-1
@@ -172,7 +170,6 @@ const Home: NextPage = () => {
   const [Ka2_value, setKa2_value] = useState(generateValueGivenMeanAndStdDev(Ka2_mean, Ka2_stdDev, Ka2_step)); // Ka2 initial value in min^-1
   const Ka2_unit = "min⁻¹"; // Ka2 unit
   const Ka2_description = "Second rate constant for insulin absorption model.";
-  const [Ka2_hover, setKa2_hover] = useState(false); // Ka2 hover state for tooltip
 
   // Ka3: Insulin absorption rate
   const [Ka3_mean, setKa3_mean] = useState(0.0304); // Ka3 mean value in min^-1
@@ -181,7 +178,6 @@ const Home: NextPage = () => {
   const [Ka3_value, setKa3_value] = useState(generateValueGivenMeanAndStdDev(Ka3_mean, Ka3_stdDev, Ka3_step)); // Ka3 initial value in min^-1
   const Ka3_unit = "min⁻¹"; // Ka3 unit
   const Ka3_description = "Third rate constant for insulin absorption model.";
-  const [Ka3_hover, setKa3_hover] = useState(false); // Ka3 hover state for tooltip
 
   // SI1: Insulin sensitivity
   const [SI1_mean, setSI1_mean] = useState(51.2); // SI1 mean value in min^-1/(mU/L)
@@ -190,7 +186,6 @@ const Home: NextPage = () => {
   const [SI1_value, setSI1_value] = useState(generateValueGivenMeanAndStdDev(SI1_mean, SI1_stdDev, SI1_step)); // SI1 initial value in min^-1/(mU/L)
   const SI1_unit = "min⁻¹ / (mU / L)"; // SI1 unit
   const SI1_description = "Insulin sensitivity parameter affecting glucose transport from plasma.";
-  const [SI1_hover, setSI1_hover] = useState(false); // SI1 hover state for tooltip
 
   // SI2: Insulin sensitivity
   const [SI2_mean, setSI2_mean] = useState(8.2); // SI2 mean value in min^-1/(mU/L)
@@ -199,7 +194,6 @@ const Home: NextPage = () => {
   const [SI2_value, setSI2_value] = useState(generateValueGivenMeanAndStdDev(SI2_mean, SI2_stdDev, SI2_step)); // SI2 initial value in min^-1/(mU/L)
   const SI2_unit = "min⁻¹ / (mU / L)"; // SI2 unit
   const SI2_description = "Insulin sensitivity parameter for the disposal of glucose.";
-  const [SI2_hover, setSI2_hover] = useState(false); // SI2 hover state for tooltip
 
   // SI3: Insulin sensitivity
   const [SI3_mean, setSI3_mean] = useState(520); // SI3 mean value in L/mU
@@ -208,7 +202,6 @@ const Home: NextPage = () => {
   const [SI3_value, setSI3_value] = useState(generateValueGivenMeanAndStdDev(SI3_mean, SI3_stdDev, SI3_step)); // SI3 initial value in L/mU
   const SI3_unit = "L / mU"; // SI3 unit
   const SI3_description = "Insulin sensitivity parameter affecting endogenous glucose production.";
-  const [SI3_hover, setSI3_hover] = useState(false); // SI3 hover state for tooltip
 
   // Ke: Insulin elimination rate
   const [Ke_mean, setKe_mean] = useState(0.14); // Ke mean value in min^-1
@@ -217,7 +210,6 @@ const Home: NextPage = () => {
   const [Ke_value, setKe_value] = useState(generateValueGivenMeanAndStdDev(Ke_mean, Ke_stdDev, Ke_step)); // Ke initial value in min^-1
   const Ke_unit = "min⁻¹"; // Ke unit
   const Ke_description = "Insulin elimination rate constant, representing the rate at which insulin is cleared from the bloodstream.";
-  const [Ke_hover, setKe_hover] = useState(false); // Ke hover state for tooltip
 
   // VI: Insulin distribution volume
   const [VI_mean, setVI_mean] = useState(0.12); // VI mean value in L/kg
@@ -226,7 +218,6 @@ const Home: NextPage = () => {
   const [VI_value, setVI_value] = useState(generateValueGivenMeanAndStdDev(VI_mean, VI_stdDev, VI_step)); // VI initial value in L/kg
   const VI_unit = "L / kg"; // VI unit
   const VI_description = "Insulin distribution volume, representing the volume in which insulin is distributed in the body.";
-  const [VI_hover, setVI_hover] = useState(false); // VI hover state for tooltip
 
   // VG: Volume of distribution for glucose
   const [VG_mean, setVG_mean] = useState(1.16); // VG mean value in L/kg
@@ -235,7 +226,6 @@ const Home: NextPage = () => {
   const [VG_value, setVG_value] = useState(generateValueGivenMeanAndStdDev(VG_mean, VG_stdDev, VG_step, "exp")); // VG initial value in L/kg
   const VG_unit = "L / kg"; // VG unit
   const VG_description = "Volume of distribution for glucose, representing the volume in which glucose is distributed in the body.";
-  const [VG_hover, setVG_hover] = useState(false); // VG hover state for tooltip
 
   // TauI: Insulin infusion time constant
   const [TauI_mean, setTauI_mean] = useState(0.018); // TauI mean value in hours
@@ -244,7 +234,6 @@ const Home: NextPage = () => {
   const [TauI_value, setTauI_value] = useState(generateValueGivenMeanAndStdDev(TauI_mean, TauI_stdDev, TauI_step, "div")); // TauI initial value in hours
   const TauI_unit = "min"; // TauI unit
   const TauI_description = "Insulin infusion time constant, representing the time it takes for insulin to reach its peak effect after infusion.";
-  const [TauI_hover, setTauI_hover] = useState(false); // TauI hover state for tooltip
 
   // TauG: Glucose infusion time constant
   const [TauG_mean, setTauG_mean] = useState(-3.689); // TauG mean value in hours
@@ -253,7 +242,6 @@ const Home: NextPage = () => {
   const [TauG_value, setTauG_value] = useState(generateValueGivenMeanAndStdDev(TauG_mean, TauG_stdDev, TauG_step, "divln")); // TauG initial value in hours
   const TauG_unit = "min"; // TauG unit
   const TauG_description = "Glucose infusion time constant, representing the time it takes for glucose to reach its peak effect after infusion.";
-  const [TauG_hover, setTauG_hover] = useState(false); // TauG hover state for tooltip
 
   // AG: Glucose absorption rate
   const [AG_min, setAG_min] = useState(0.7); // AG mean value
@@ -262,7 +250,6 @@ const Home: NextPage = () => {
   const [AG_value, setAG_value] = useState(generateValueGivenMeanAndStdDev(AG_min, AG_max, AG_step, "uniform")); // AG initial value
   const AG_unit = "Unitless"; // AG unit
   const AG_description = "Glucose absorption rate, representing the rate at which glucose is absorbed from the gastrointestinal tract into the bloodstream.";
-  const [AG_hover, setAG_hover] = useState(false); // AG hover state for tooltip
 
   // BW: Body weight
   const [BW_min, setBW_min] = useState(65); // BW mean value in kg
@@ -271,7 +258,6 @@ const Home: NextPage = () => {
   const [BW_value, setBW_value] = useState(generateValueGivenMeanAndStdDev(BW_min, BW_max, BW_step, "uniform")); // BW initial value in kg
   const BW_unit = "kg"; // BW unit
   const BW_description = "Body weight of the patient, which influences insulin sensitivity and glucose metabolism.";
-  const [BW_hover, setBW_hover] = useState(false); // BW hover state for tooltip
 
 
   // MEAL PARAMETERS
@@ -1081,6 +1067,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
+                  <Tooltip title={EGP0_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>{/*
                   <div
                     onMouseEnter={() => setEGP0_hover(true)}
                     onMouseLeave={() => setEGP0_hover(false)}
@@ -1088,7 +1078,7 @@ const Home: NextPage = () => {
                     style={{borderColor: "var(--primary)", color: "var(--primary)"}}
                   >
                     {EGP0_hover ? EGP0_description : <b>?</b>}
-                  </div>
+                  </div>*/}
                 </td>
               </tr>
 
@@ -1118,14 +1108,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setF01_hover(true)}
-                    onMouseLeave={() => setF01_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {F01_hover ? F01_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={F01_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1155,14 +1141,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setK12_hover(true)}
-                    onMouseLeave={() => setK12_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {K12_hover ? K12_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={K12_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1192,14 +1174,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setKa1_hover(true)}
-                    onMouseLeave={() => setKa1_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {Ka1_hover ? Ka1_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={Ka1_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1229,14 +1207,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setKa2_hover(true)}
-                    onMouseLeave={() => setKa2_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {Ka2_hover ? Ka2_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={Ka2_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1266,14 +1240,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setKa3_hover(true)}
-                    onMouseLeave={() => setKa3_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {Ka3_hover ? Ka3_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={Ka3_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1305,14 +1275,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setSI1_hover(true)}
-                    onMouseLeave={() => setSI1_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {SI1_hover ? SI1_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={SI1_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1344,14 +1310,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setSI2_hover(true)}
-                    onMouseLeave={() => setSI2_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {SI2_hover ? SI2_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={SI2_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1381,14 +1343,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setSI3_hover(true)}
-                    onMouseLeave={() => setSI3_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {SI3_hover ? SI3_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={SI3_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1418,14 +1376,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setKe_hover(true)}
-                    onMouseLeave={() => setKe_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {Ke_hover ? Ke_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={Ke_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1455,14 +1409,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setVI_hover(true)}
-                    onMouseLeave={() => setVI_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {VI_hover ? VI_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={VI_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1492,14 +1442,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setVG_hover(true)}
-                    onMouseLeave={() => setVG_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {VG_hover ? VG_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={VG_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1529,14 +1475,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setTauI_hover(true)}
-                    onMouseLeave={() => setTauI_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {TauI_hover ? TauI_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={TauI_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1566,14 +1508,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setTauG_hover(true)}
-                    onMouseLeave={() => setTauG_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {TauG_hover ? TauG_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={TauG_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1603,14 +1541,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setAG_hover(true)}
-                    onMouseLeave={() => setAG_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {AG_hover ? AG_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={AG_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
@@ -1639,14 +1573,10 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}<sup>2</sup>)
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
-                  <div
-                    onMouseEnter={() => setBW_hover(true)}
-                    onMouseLeave={() => setBW_hover(false)}
-                    className="cursor-help relative overflow-visible text-lg"
-                    style={{borderColor: "var(--primary)", color: "var(--primary)"}}
-                  >
-                    {BW_hover ? BW_description : <b>?</b>}
-                  </div>
+                  <Tooltip title={BW_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                    <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                            style={{borderColor: "var(--primary)", color: "var(--primary)"}}>?</button>
+                  </Tooltip>
                 </td>
               </tr>
 
