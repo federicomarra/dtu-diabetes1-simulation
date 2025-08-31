@@ -4,11 +4,12 @@ import { NextPage } from "next";
 import { useState  } from "react";
 import { LineChart } from '@mui/x-charts/LineChart';
 import { Simulator } from "@/app/Simulator";
+import { FormControlLabel, FormGroup, Switch } from "@mui/material";
 
 const Home: NextPage = () => {
 
   const debug = false;
-  const isSimulationFake = true;
+  const isSimulationFake = false;
 
   const MwG = 180.1577; // Molar mass of glucose in g/mol
   const TargetBG = 5.5; // Target blood glucose level in mmol/L
@@ -382,7 +383,7 @@ const Home: NextPage = () => {
     return repeatArray(array_to_repeat, days_to_repeat); // Repeat the array for the specified number of days
   }
 
-  const [isBasalActive, setBasalActive] = useState(true);
+  const [isBasalActive, setIsBasalActive] = useState(true);
 
   const getEmptyArray = (days_to_repeat: number, time_step: number) => {
     const length_one_day = 24 * 60 / time_step + 1; // Length of one day in minutes based on timeStep
@@ -654,7 +655,8 @@ const Home: NextPage = () => {
     const dCho: number[] = areMealsActive ? getDCho(days, timeStep) : getEmptyArray(days, timeStep);
     const uIns: number[] = isBasalActive ? getUIns(days, timeStep) : getEmptyArray(days, timeStep);
 
-    console.log("Empty array:", uIns);
+    console.log("dCho array:", dCho);
+    console.log("uIns array:", uIns);
 
     if (isSimulationFake) {
       const total_length = days * 24 * 60 / timeStep + 1; // Length of one day in minutes based on timeStep
@@ -666,8 +668,7 @@ const Home: NextPage = () => {
       const fakeResult = Array.from({length: total_length}, (_, i) => {
         return generateValueGivenMeanAndStdDev(initMinGlyc(), initMaxGlyc(), glycStep(), "uniform"); // Return a random glycemia value for that hour
       });
-
-       */
+      */
       setOutput(fakeResult);
 
     } else {
@@ -1656,7 +1657,15 @@ const Home: NextPage = () => {
 
 
         <div className="mt-8 overflow-visible relative">
-          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Carbohydrate Intake</h2>
+          <div className="overflow-visible relative flex justify-between items-center mr-2">
+            <h2 className="text-2xl font-semibold ml-2 overflow-visible relative">Carbohydrate Intake</h2>
+            <FormGroup><FormControlLabel control={<Switch
+              checked={areMealsActive}
+              onChange={(event) => setAreMealsActive(event.target.checked)}
+              className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
+              style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
+            />} label={areMealsActive ? "On" : "Off"} labelPlacement="start"/></FormGroup>
+          </div>
           {areMealsActive && (
             <div className="overflow-x-auto overflow-visible relative">
               <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
@@ -1700,7 +1709,15 @@ const Home: NextPage = () => {
         </div>
 
         <div className="mt-8 overflow-visible relative">
-          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Basal Insulin Intake</h2>
+          <div className="overflow-visible relative flex justify-between items-center mr-2">
+            <h2 className="text-2xl font-semibold ml-2 overflow-visible relative">Basal Insulin Intake</h2>
+            <FormGroup><FormControlLabel control={<Switch
+              checked={isBasalActive}
+              onChange={(event) => setIsBasalActive(event.target.checked)}
+              className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
+              style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
+            />} label={isBasalActive ? "On" : "Off"} labelPlacement="start"/></FormGroup>
+          </div>
           {isBasalActive && (
             <div className="overflow-x-auto overflow-visible relative">
               <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
