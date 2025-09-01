@@ -20,12 +20,22 @@ const Home: NextPage = () => {
   }
 
   const generateValueGivenMeanAndStdDev = (mean: number, stdDev: number, step: number, distributionName?: string): number => {
-    const u1 = Math.random();
-    const u2 = Math.random();
-    const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+    const sampleStandardNormal = (): number => {
+      let u1 = 0, u2 = 0;
+      // avoid u1=0 (log(0)) and keep uniformity
+      while (u1 === 0) u1 = Math.random();
+      while (u2 === 0) u2 = Math.random();
+      return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+    };
+    const z0 = sampleStandardNormal();
     let rawValue = z0 * stdDev + mean;
+
     if (distributionName === "exp") {
-      rawValue = Math.log(mean);//Math.log(rawValue);
+      while (rawValue <= 0) {
+        const z = sampleStandardNormal();
+        rawValue = z * stdDev + mean;
+      }
+      rawValue = Math.log(rawValue);
     } else if (distributionName === "div" && rawValue !== 0) {
       rawValue = 1 / rawValue; // Inverse transformation for division
     } else if (distributionName === "divln") {
@@ -48,7 +58,7 @@ const Home: NextPage = () => {
   const defaultDays = possibleDays[0]; // Default number of days for the simulation
   const [days, setDays] = useState<number>(defaultDays);
   const [oldDays, setOldDays] = useState<number>(defaultDays); // State to keep track of the old number of days
-  const possibleTimeSteps = [5, 10, 15, 30, 60]; // Possible time steps in minutes
+  const possibleTimeSteps = [5, 10, 20, 30, 60]; // Possible time steps in minutes
   const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 3]; // Default time step in minutes
   const [timeStep, setTimeStep] = useState<number>(defaultTimeStep); // Time step in minutes
   const timeLength_days = (days: number, timeStep: number) => days * 24 * 60 / timeStep + 1; // Total time length in minutes, +1 to include the 24:00
@@ -641,8 +651,8 @@ const Home: NextPage = () => {
     const dCho: number[] = areMealsActive ? getDCho(days, timeStep) : getEmptyArray(days, timeStep);
     const uIns: number[] = isBasalActive ? getUIns(days, timeStep) : getEmptyArray(days, timeStep);
 
-    console.log("dCho array:", dCho);
-    console.log("uIns array:", uIns);
+    //console.log("dCho array:", dCho);
+    //console.log("uIns array:", uIns);
 
     if (isSimulationFake) {
       const total_length = days * 24 * 60 / timeStep + 1; // Length of one day in minutes based on timeStep

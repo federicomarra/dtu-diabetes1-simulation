@@ -198,7 +198,7 @@ export class HovorkaModel extends Component {
     const IIR = (input.u[t] || 0) * 1000;    // insulin infusion rate in mU/min
     const D = (input.carbs[t] || 0) * (1000 / MwG) * 10000000; // carbohydrate intake in
     const G = state.Q1 / (VG);          // eq:2.3 (glucose concentration in mmol/l)
-    console.log(`G(${t})=${G}`)
+    //console.log(`G(${t})=${G}`)
 
     /** extractions of state model nodes */
     const S1 = state.S1;
