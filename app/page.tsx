@@ -95,9 +95,11 @@ const Home: NextPage = () => {
   const initMaxGlyc = () => unitMgDl ? 300 : 16.7;
   const initGoodMinGlyc = () => unitMgDl ? 80 : 4.4; // Good minimum glycemia value in mmol/L or mg/dL
   const initGoodMaxGlyc = () => unitMgDl ? 150 : 8.3; // Good maximum glycemia value in mmol/L or mg/dL
+  const initDesiredGlyc = () => unitMgDl ? 100 : TargetBG; // Desired glycemia value in mmol/L or mg/dL
   const [minGlycemia, setMinGlycemia] = useState<number>(initMinGlyc());
   const [maxGlycemia, setMaxGlycemia] = useState<number>(initMaxGlyc());
   const [goodGlycemia, setGoodGlycemia] = useState<number[]>([initGoodMinGlyc(), initGoodMaxGlyc()]); // Good glycemia value in mmol/L or mg/dL
+  const [desiredGlycemia, setDesiredGlycemia] = useState<number>(initDesiredGlyc());
   const [isGraphOld, setIsGraphOld] = useState<boolean>(false); // State to toggle between old and new graph
 
   const convertTimeToHours = (t: number, timeStep: number): string => {
@@ -134,7 +136,8 @@ const Home: NextPage = () => {
     setMinGlycemia(initMinGlyc());
     setMaxGlycemia(initMaxGlyc());
     setGoodGlycemia([initGoodMinGlyc(), initGoodMaxGlyc()])
-    console.log(minGlycemia, maxGlycemia, goodGlycemia);
+    setDesiredGlycemia(initDesiredGlyc());
+    console.log(minGlycemia, maxGlycemia, goodGlycemia, desiredGlycemia);
     setOutput(output.map(glycemia => convertGlycemia(glycemia, toMgDl)));
   }
 
@@ -768,8 +771,8 @@ const Home: NextPage = () => {
                 <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Blood glucose
                   unit
                 </td>
-                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
-                  <select
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>mmol/L
+                  {/*<select
                     id="unit"
                     name="unit"
                     onChange={(e) => {
@@ -779,15 +782,15 @@ const Home: NextPage = () => {
                     defaultValue={unitMgDl ? "mg/dL" : "mmol/L"}
                   >
                     <option value="mmol/L">mmol/L</option>
-                    {/*<option value="mg/dL">mg/dL</option>*/}
-                  </select>
+                    <option value="mg/dL">mg/dL</option>
+                  </select>*/}
                 </td>
               </tr>
 
               <tr>
                 <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Diabates Model</td>
-                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
-                  <select
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{defaultModel}
+                  {/*<select
                     id="model"
                     name="model"
                     onChange={(e) => {
@@ -801,7 +804,7 @@ const Home: NextPage = () => {
                     {possibleModels.map((model) => (
                       <option key={model} value={model}>{model}</option>
                     ))}
-                  </select>
+                  </select>*/}
                 </td>
               </tr>
 
@@ -1746,17 +1749,30 @@ const Home: NextPage = () => {
                         fill: "var(--primary)",
                         min: 0,
                         max: 24,
-                        scaleType: "linear"
+                        scaleType: "linear",
+                        valueFormatter: (hour) => convertTimeToHours(hour * 60 / timeStep, timeStep)
                       }]}
                       yAxis={[{
                         data: dayResult,
                         min: minGlycemia,
-                        max: maxGlycemia,
-                        label: "Glucose " + (unitMgDl ? "(mg/dL)" : "(mmol/L)")
+                        max: maxGlycemia + glycStep(),
+                        label: "Glucose " + (unitMgDl ? "(mg/dL)" : "(mmol/L)"),
+                        colorMap: {
+                          /*type: 'continuous',
+                          min: goodGlycemia[0],
+                          max: goodGlycemia[1],
+                          color: ['var(--success)', 'var(--danger)']*/
+                          type: 'piecewise',
+                          thresholds: goodGlycemia,
+                          colors: ['var(--danger)', 'var(--success)', 'var(--warning)']
+                        }
                       }]}
                       series={[{
                         curve: "catmullRom",
                         data: dayResult.map((value: number) => (value ? value : null)),
+                        showMark: ({index}) => index % (60 / timeStep) === 0,
+                        area: true,
+                        baseline: desiredGlycemia
                       }]}
                       width={1050}
                       height={350}
