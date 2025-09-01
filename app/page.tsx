@@ -729,22 +729,7 @@ const Home: NextPage = () => {
 
       <div className="mt-8">
         <div className="mt-8 overflow-visible relative">
-          <div className="overflow-visible relative flex justify-between items-center mr-2">
             <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Simulation Parameters</h2>
-            <div></div>
-            <FormGroup><FormControlLabel control={<Switch
-              checked={debug}
-              onChange={(event) => setDebug(event.target.checked)}
-              className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
-              style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
-            />} label={debug ? "Debug on" : "Debug off"} labelPlacement="start"/></FormGroup>
-            <FormGroup><FormControlLabel control={<Switch
-              checked={!isSimulationFake}
-              onChange={(event) => {setIsSimulationFake(!event.target.checked); setIsGraphOld(true)}}
-              className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
-              style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
-            />} label={isSimulationFake ? "Fake sim" : "True sim"} labelPlacement="start"/></FormGroup>
-          </div>
           <div className="overflow-x-auto overflow-visible relative">
             <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
                    style={{borderColor: "var(--primary)"}}>
@@ -1730,6 +1715,10 @@ const Home: NextPage = () => {
         </div>
 
         <div className="mt-8 overflow-visible relative">
+          <Tooltip title={isGraphOld && output.length > 0 ? "Simulate again, what you see now is an old graph" : ""} placement="bottom"
+                   slots={{transition: Fade}} slotProps={{transition: {timeout: 500}}} className="p-3"
+                   style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+
           <button
             onClick={handleExecute}
             className="mt-4 px-4 py-2.5 text-base font-extrabold rounded-full w-full cursor-pointer"
@@ -1739,14 +1728,30 @@ const Home: NextPage = () => {
               fontSize: "22px",
             }}
           >
-            Simulate{isGraphOld && output.length > 0 ? " again (what you see now is an old graph)" : ""}
+            Simulate
           </button>
+          </Tooltip>
         </div>
 
         { output.length > 0 && (
           <div className="mt-8 overflow-visible relative">
-            <h2 className="text-2xl font-semibold mt-8 mb-4 ml-2">Simulation Results{isSimulationFake ? " (now the simulation outputs only random values)" : ""}<span
-              style={{color: "var(--warning)"}}>{isGraphOld ? "*" : ""}</span></h2>
+            <div className="overflow-visible relative flex justify-between items-center mr-2 mt-4">
+              <h2 className="text-2xl font-semibold mt-4 mb-4 ml-2">Simulation Results<span
+                style={{color: "var(--warning)"}}>{isGraphOld ? "*" : ""}</span></h2>
+              <div></div>
+              <FormGroup><FormControlLabel control={<Switch
+                checked={debug}
+                onChange={(event) => setDebug(event.target.checked)}
+                className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
+                style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
+              />} label={debug ? "Debug on" : "Debug off"} labelPlacement="start"/></FormGroup>
+              <FormGroup><FormControlLabel control={<Switch
+                checked={!isSimulationFake}
+                onChange={(event) => {setIsSimulationFake(!event.target.checked); setIsGraphOld(true)}}
+                className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
+                style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
+              />} label={isSimulationFake ? "Fake sim" : "True sim"} labelPlacement="start"/></FormGroup>
+            </div>
             <div className="overflow-x-auto" style={{backgroundColor: "var(--snow-white)", borderRadius: "26.5px"}}>
               {Array.from({length: days}).map((_, dayIndex) => {
                 const showThisGraph = (isGraphOld && dayIndex < oldDays) || !isGraphOld;
