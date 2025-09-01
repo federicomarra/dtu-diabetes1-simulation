@@ -4,7 +4,7 @@ import { Derivatives } from "@/app/Solver"
 import { HovorkaModel } from "@/app/HovorkaModel";
 import { Controller } from "@/app/Controller";
 
-export function Simulator(modelName: string, carbs: number[], basal: number[], simParams: any, patient: any): [number[], number[], NamedVector[]] {
+export function Simulator(modelName: string, carbs: number[], basal: number[], simParams: any, patient: any): [number[], number[], number[], NamedVector[]] {
 
   // Initialize simulation parameters
   const timeArray = simParams.time; // Time array in minutes
@@ -45,6 +45,7 @@ export function Simulator(modelName: string, carbs: number[], basal: number[], s
   const stateHistory: NamedVector[] = [];
   const outputHistory: number[] = [];
   const inputHistory: number[] = [];
+  const disturbanceHistory: number[] = [];
 
   while (t <= tEnd) {
     // Control computation
@@ -72,6 +73,7 @@ export function Simulator(modelName: string, carbs: number[], basal: number[], s
     stateHistory.push(x_t);
     outputHistory.push(y_t);
     inputHistory.push(u_t);
+    disturbanceHistory.push(d_t);
 
     // Prepare for the next iteration
     t += 1;
@@ -79,10 +81,11 @@ export function Simulator(modelName: string, carbs: number[], basal: number[], s
 
   console.log("Output history:", outputHistory);
   console.log("Input insulin history:", inputHistory);
+  console.log("Disturbance carbohydrates history:", disturbanceHistory);
   console.log("State history:", stateHistory);
 
   // Return the glycemia history and state history
-  const ret_array = [outputHistory, inputHistory, stateHistory] as [number[], number[], NamedVector[]];
+  const ret_array = [outputHistory, inputHistory, disturbanceHistory, stateHistory] as [number[], number[], number[], NamedVector[]];
 
   return ret_array;
 }

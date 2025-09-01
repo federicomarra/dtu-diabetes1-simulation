@@ -5,11 +5,12 @@ import { useState  } from "react";
 import { LineChart } from '@mui/x-charts/LineChart';
 import { Simulator } from "@/app/Simulator";
 import { Fade, FormControlLabel, FormGroup, Switch, Tooltip} from "@mui/material";
+import { NamedVector } from "@/app/types";
 
 const Home: NextPage = () => {
 
-  const debug = false;
-  const isSimulationFake = false;
+  const [debug, setDebug] = useState<boolean>(false);
+  const [isSimulationFake, setIsSimulationFake] = useState<boolean>(false);
 
   const MwG = 180.1577; // Molar mass of glucose in g/mol
   const TargetBG = 5.5; // Target blood glucose level in mmol/L
@@ -50,7 +51,7 @@ const Home: NextPage = () => {
     return roundToDecimal(rawValue, decimals);
   }
 
-  const [conversionFactor, setConversionFactor] = useState<number>(MwG / 10);
+  const conversionFactor = MwG / 10;
 
   // SIMULATION PARAMETERS
   // Number of days for the simulation
@@ -155,7 +156,7 @@ const Home: NextPage = () => {
   // F01: Insulin-independent glucose flux
   const [F01_mean, setF01_mean] = useState(0.0097); // F01 mean value in mmol/kg/min
   const [F01_stdDev, setF01_stdDev] = useState(0.0022); // F01 standard deviation in mmol/kg/min
-  const F01_step = 0.0001; // F01 step size for input field
+  const F01_step = 0.0001; // F01 step size for the input field
   const [F01_value, setF01_value] = useState(generateValueGivenMeanAndStdDev(F01_mean, F01_stdDev, F01_step)); // F01 initial value in mmol/kg/min
   const F01_unit = "mmol / kg / min"; // F01 unit
   const F01_description = "Insulin-independent glucose flux represents the amount of glucose uptake that occurs without insulin influence.";
@@ -163,7 +164,7 @@ const Home: NextPage = () => {
   // K12: Transfer rate between compartments
   const [K12_mean, setK12_mean] = useState(0.0649); // K12 mean value in min^-1
   const [K12_stdDev, setK12_stdDev] = useState(0.0282); // K12 standard deviation in min^-1
-  const K12_step = 0.0001; // K12 step size for input field
+  const K12_step = 0.0001; // K12 step size for the input field
   const [K12_value, setK12_value] = useState(generateValueGivenMeanAndStdDev(K12_mean, K12_stdDev, K12_step)); // K12 initial value in min^-1
   const K12_unit = "min⁻¹"; // K12 unit
   const K12_description = "Transfer rate between the accessible and non-accessible glucose compartments.";
@@ -195,7 +196,7 @@ const Home: NextPage = () => {
   // SI1: Insulin sensitivity
   const [SI1_mean, setSI1_mean] = useState(51.2); // SI1 mean value in min^-1/(mU/L)
   const [SI1_stdDev, setSI1_stdDev] = useState(32.09); // SI1 standard deviation in min^-1/(mU/L)
-  const SI1_step = 0.1; // SI1 step size for input field
+  const SI1_step = 0.1; // SI1 step size for the input field
   const [SI1_value, setSI1_value] = useState(generateValueGivenMeanAndStdDev(SI1_mean, SI1_stdDev, SI1_step)); // SI1 initial value in min^-1/(mU/L)
   const SI1_unit = "min⁻¹ / (mU / L)"; // SI1 unit
   const SI1_description = "Insulin sensitivity parameter affecting glucose transport from plasma.";
@@ -259,7 +260,7 @@ const Home: NextPage = () => {
   // AG: Glucose absorption rate
   const [AG_min, setAG_min] = useState(0.7); // AG mean value
   const [AG_max, setAG_max] = useState(1.2); // AG standard deviation
-  const AG_step = 0.1; // AG step size for input field
+  const AG_step = 0.1; // AG step size for the input field
   const [AG_value, setAG_value] = useState(generateValueGivenMeanAndStdDev(AG_min, AG_max, AG_step, "uniform")); // AG initial value
   const AG_unit = "Unitless"; // AG unit
   const AG_description = "Glucose absorption rate, representing the rate at which glucose is absorbed from the gastrointestinal tract into the bloodstream.";
@@ -319,7 +320,7 @@ const Home: NextPage = () => {
       }
       return 0; // No carbohydrate intake at other times
     })
-    //console.log("length of array to repeat:", array_to_repeat.length, "for", days_to_repeat, "days");
+    //console.log("length of array to repeat", array_to_repeat.length, "for", days_to_repeat, "days");
     //console.log("array to repeat:", array_to_repeat);
     return repeatArray(array_to_repeat, days_to_repeat); // Repeat the array for the specified number of days
   }
@@ -377,7 +378,7 @@ const Home: NextPage = () => {
       }
       return 0; // No basal intake at other times
     })
-    //console.log("length of array to repeat:", array_to_repeat.length, "for", days_to_repeat, "days");
+    //console.log("length of array to repeat", array_to_repeat.length, "for", days_to_repeat, "days");
     //console.log("array to repeat:", array_to_repeat);
     return repeatArray(array_to_repeat, days_to_repeat); // Repeat the array for the specified number of days
   }
@@ -394,8 +395,9 @@ const Home: NextPage = () => {
   //const [uIns, setUIns] = useState<number[]>(uIns_days(days));
 
   const [input, setInput] = useState<number[]>([]);
+  const [disturbance, setDisturbance] = useState<number[]>([]);
   const [output, setOutput] = useState<number[]>([]);
-  const [states, setStates] = useState<any[]>();
+  const [states, setStates] = useState<NamedVector[]>();
 
 
   const setParameter = (new_value: number, name: string) => {
@@ -590,6 +592,12 @@ const Home: NextPage = () => {
     setIsGraphOld(true) // Set the graph to old state to trigger re-render
   }
 
+  const convertStateIntoString = (state: NamedVector): string => {
+    //if (state?.Q1)
+      return `Glucose subsystem: Q1=${state.Q1}, Q2=${state.Q2}  -  Insulin subsystem: S1=${state.S1}, S2=${state.S2}, I=${state.I}  -  Insulin action subsystem: x1=${state.x1}, x2=${state.x2}, x3=${state.x3}  -  Cho subsystem: D1=${state.D1}, D2=${state.D2}`
+    //else return "No state, cause the values have been generated randomly"
+  }
+
   const handleExecute = () => {
     const simulationParams = {  // Parameters for the Simulation
       "days": days,
@@ -630,7 +638,7 @@ const Home: NextPage = () => {
         "max": 150
       }
     }
-    const patientParams = {  // Parameters for the Patient, following Hovorka model multiplied by timeStep or divided by timeStep as needed
+    const patientParams = {  // Parameters for the Patient, following the Hovorka model multiplied by timeStep or divided by timeStep as needed
       "EGP0": EGP0_value / timeStep,
       "F01": F01_value / timeStep,
       "k12": K12_value / timeStep,
@@ -661,7 +669,7 @@ const Home: NextPage = () => {
       const total_length = days * 24 * 60 / timeStep + 1; // Length of one day in minutes based on timeStep
       const fakeResult = [generateValueGivenMeanAndStdDev(initMinGlyc(), initMaxGlyc(), glycStep(), "uniform")];
       for (let i = 1; i < total_length; i++) {
-        fakeResult.push(Math.max(initMinGlyc(), Math.min(initMaxGlyc(), roundToDecimal(fakeResult[i - 1] + ((Math.random() - 0.5) * glycStep() * 10), glycStep()))));
+        fakeResult.push(Math.max(initMinGlyc(), Math.min(initMaxGlyc(), roundToDecimal(fakeResult[i - 1] + ((Math.random() - 0.5) * glycStep() * 20), glycStep()))));
       }
       /*
       const fakeResult = Array.from({length: total_length}, (_, i) => {
@@ -669,6 +677,9 @@ const Home: NextPage = () => {
       });
       */
       setOutput(fakeResult);
+      setInput([])
+      setDisturbance([])
+      setStates([{}])
 
     } else {
       const simulationRes = Simulator(modelName, dCho, uIns, simulationParams, patientParams);
@@ -679,10 +690,11 @@ const Home: NextPage = () => {
         setOutput(simulationOutput);
       }
       setInput(simulationRes[1]);
-      setStates(simulationRes[2]);
+      setDisturbance(simulationRes[2]);
+      setStates(simulationRes[3]);
 
     }
-    setIsGraphOld(false); // Set the graph to new state to trigger re-render
+    setIsGraphOld(false); // Set the graph to the new state to trigger re-render
   }
 
   // @ts-ignore
@@ -695,7 +707,7 @@ const Home: NextPage = () => {
       <h2 className="text-2xl font-semibold mb-2">Activities</h2>
       <ol className="list-decimal list-inside space-y-2">
         <li>
-          Literature study and software architecture. We will investigate the <a href={"https://lt1.org"} target="_blank" rel="noopener noreferrer">lt1.org</a> and <a href={"https://t2d.aau.dk"} target="_blank" rel="noopener noreferrer">t2d.aau.dk</a> open-source software.
+          Literature study and software architecture. We will investigate <a href={"https://lt1.org"} target="_blank" rel="noopener noreferrer">lt1.org</a> and <a href={"https://t2d.aau.dk"} target="_blank" rel="noopener noreferrer">t2d.aau.dk</a> open-source software.
         </li>
         <li>
           Modeling and simulation of diabetes models (JavaScript/TypeScript).
@@ -712,12 +724,27 @@ const Home: NextPage = () => {
         </li>
       </ol>
       <p className="mt-4">
-        We will make a project plan in the beginning of the project and scientific software project management is part of the learning objectives.
+        We will make a project plan at the beginning of the project and scientific software project management is part of the learning goals.
       </p>*/}
 
       <div className="mt-8">
         <div className="mt-8 overflow-visible relative">
-          <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Simulation Parameters</h2>
+          <div className="overflow-visible relative flex justify-between items-center mr-2">
+            <h2 className="text-2xl font-semibold mb-4 ml-2 overflow-visible relative">Simulation Parameters</h2>
+            <div></div>
+            <FormGroup><FormControlLabel control={<Switch
+              checked={debug}
+              onChange={(event) => setDebug(event.target.checked)}
+              className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
+              style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
+            />} label={debug ? "Debug on" : "Debug off"} labelPlacement="start"/></FormGroup>
+            <FormGroup><FormControlLabel control={<Switch
+              checked={!isSimulationFake}
+              onChange={(event) => {setIsSimulationFake(!event.target.checked); setIsGraphOld(true)}}
+              className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
+              style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
+            />} label={isSimulationFake ? "Fake sim" : "True sim"} labelPlacement="start"/></FormGroup>
+          </div>
           <div className="overflow-x-auto overflow-visible relative">
             <table className="w-2/3 mx-auto border-collapse border overflow-visible relative"
                    style={{borderColor: "var(--primary)"}}>
@@ -788,7 +815,7 @@ const Home: NextPage = () => {
               </tr>
 
               <tr>
-                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Diabates Model</td>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Diabetes Model</td>
                 <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{defaultModel}
                   {/*<select
                     id="model"
@@ -1716,7 +1743,7 @@ const Home: NextPage = () => {
           </button>
         </div>
 
-        {output.length > 0 && (
+        { output.length > 0 && (
           <div className="mt-8 overflow-visible relative">
             <h2 className="text-2xl font-semibold mt-8 mb-4 ml-2">Simulation Results{isSimulationFake ? " (now the simulation outputs only random values)" : ""}<span
               style={{color: "var(--warning)"}}>{isGraphOld ? "*" : ""}</span></h2>
@@ -1732,9 +1759,7 @@ const Home: NextPage = () => {
 
                 //console.log("DayIndex:", dayIndex, "\nDayStart:", dayStart, "DayEnd:", dayEnd, "PointsPerDay:", pointsPerDay, "\nResult Length:", output.length);
 
-                const dayMinutes = Array.from({length: pointsPerDay}, (_, i) => (i * timeStep));
                 const dayHours = Array.from({length: pointsPerDay}, (_, i) => (i * timeStep / 60));
-                const dayTimeString = convertTimeArrayToHours(dayHours, timeStep);
                 const dayResult = output.slice(dayStart, dayEnd);
 
                 return (
@@ -1781,16 +1806,71 @@ const Home: NextPage = () => {
                 );
               })}
             </div>
-            {output.length > 0 && debug && (
-              <div className="mt-4">
-                <h3 className="text-xl font-semibold">Results:</h3>
-                <ul className="list-disc list-inside">
-                  {output.map((value, index) => (
-                    <li key={index}>{value}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+
+            { debug && !isSimulationFake && !isGraphOld && states && input && disturbance && (
+            <div className="overflow-x-auto overflow-visible relative mt-10">
+              <table className="w-3/4 mx-auto border-collapse border overflow-visible relative"
+                     style={{borderColor: "var(--primary)"}}>
+                <thead>
+                <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Index</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Time</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Output [{unitMgDl ? "mg / dL" : "mmol / L"}]</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Input [ U ]</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Disturbance [ g ]</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>State</th>
+                </tr>
+                </thead>
+                <tbody className="text-center">
+
+                {output.map((elem, index) => (
+                  <tr key={index}>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{index}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{convertTimeToHours(index, timeStep)}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{elem}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{input[index]}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{disturbance[index]}</td>
+                    <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
+                      <Tooltip title={convertStateIntoString(states[index])} placement="right"
+                               slots={{transition: Fade}} slotProps={{transition: {timeout: 500}}} className="p-3"
+                               style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
+                        <button className="cursor-help relative overflow-visible text-lg font-extrabold"
+                                style={{borderColor: "var(--primary)", color: "var(--primary)"}}>x<sub>{index}</sub>
+                        </button>
+                      </Tooltip>
+                    </td>
+                  </tr>
+                ))}
+                </tbody>
+              </table>
+            </div>)}
+
+        { debug && isSimulationFake && (
+          <div className="overflow-x-auto overflow-visible relative mt-10">
+            <table className="w-1/2 mx-auto border-collapse border overflow-visible relative"
+                   style={{borderColor: "var(--primary)"}}>
+              <thead>
+              <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Index</th>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Time</th>
+                <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Output
+                  [{unitMgDl ? "mg / dL" : "mmol / L"}]
+                </th>
+              </tr>
+              </thead>
+              <tbody className="text-center">
+
+              {output.map((elem, index) => (
+                <tr key={index}>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{index}</td>
+                  <td className="border px-4 py-2"
+                      style={{borderColor: "var(--primary)"}}>{convertTimeToHours(index, timeStep)}</td>
+                  <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{elem}</td>
+                </tr>
+              ))}
+              </tbody>
+            </table>
+          </div>)}
 
           </div>)}
       </div>
