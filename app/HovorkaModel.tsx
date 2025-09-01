@@ -146,13 +146,11 @@ export class HovorkaModel extends Component {
     const Geq = patient.Geq
     const F01eq = F01 * BW * Math.min(Geq / 4.5, 1)
     const Seq = (input.iir || 0) * tauI * 1000 / 60
-    //const Seq = this.computeIIR(patient) * tauI * 1000 / 60; // insulin absorption in mU/min
     const Ieq = Seq / (tauI * (VI * BW) * ke)
     const x1eq = SI1 * Ieq
     const x2eq = SI2 * Ieq
     const x3eq = SI3 * Ieq
     const Q2eq = -(F01eq - EGP0 * BW * (1 - x3eq)) / x2eq
-    //const Q1eq = Q2eq / x1eq * (k12 + x2eq)
     const Q1eq = patient.Geq * patient.BW * patient.VG
 
       return {
@@ -273,7 +271,6 @@ export class HovorkaModel extends Component {
     /** extractions of model nodes */
     const Q1 = state.Q1;
     const BW = patient.BW; // body weight in kg
-    //const MwG = this.getParameter().MwG.value; // molecular weight of glucose
     const VG = patient.VG * BW; // glucose distribution volume
 
     const G = Q1 / VG; // eq:2.3 (glucose in mmol/l)
