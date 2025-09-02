@@ -1,5 +1,5 @@
 import SolverRK4 from "@/app/SolverRK4"
-import { ModelType, NamedVector, PatientInput, vectorSum } from "@/app/types"
+import { NamedVector, PatientInput } from "@/app/types"
 import { Derivatives } from "@/app/Solver"
 import { HovorkaModel } from "@/app/HovorkaModel";
 import { Controller } from "@/app/Controller";

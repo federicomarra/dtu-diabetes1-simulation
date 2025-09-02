@@ -1,6 +1,5 @@
-import {Component} from "react";
-import {ModelType, NamedVector, ParameterType, PatientInput, PatientOutput} from "@/app/types";
-import {Derivatives} from "@/app/Solver";
+import { Component } from "react";
+import { NamedVector, PatientInput } from "@/app/types";
 
 /**
  * Represents the Ordinary Differential Equation (ODE) implementation of the Hovorka model,
@@ -11,19 +10,6 @@ import {Derivatives} from "@/app/Solver";
 export class HovorkaModel extends Component {
 
   tInit: number = 0; // initial time
-
-  state: ModelType = {
-    D1: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in stomach", history: [] },
-    D2: { unit: "mmol", default: 0, value: 0, description: "glucose absorption in intestine", history: [] },
-    S1: { unit: "mU", default: 0, value: 0, description: "insulin absorption in adipose tissue 1", history: [] },
-    S2: { unit: "mU", default: 0, value: 0, description: "insulin absorption in muscle tissue 2", history: [] },
-    I: { unit: "mU/l", default: 0, value: 0, description: "insulin in plasma", history: [] },
-    Q1: { unit: "mmol", default: 0, value: 0, min: 0, description: "glucose in blood", history: [] },
-    Q2: { unit: "mmol", default: 0, value: 0, min: 0, description: "glucose in muscles", history: [] },
-    x1: { unit: "1/min", default: 0, value: 0, description: "insulin action on glucose transport", history: [] },
-    x2: { unit: "1/min", default: 0, value: 0, description: "insulin action on glucose disposal", history: [] },
-    x3: { unit: "1/min", default: 0, value: 0, description: "insulin action on endogenous glucose production (liver)", history: [] },
-  };
 
   constructor(tInit: number) {
     super({});
@@ -167,11 +153,20 @@ export class HovorkaModel extends Component {
       };
   }
 
+
+  /**
+   * Computes the derivatives of the state variables for a given time step using the provided patient parameters and input data.
+   *
+   * @param {number} t - The current time step at which the derivatives are being calculated.
+   * @param {NamedVector} state - The current state of the system, represented as a vector of named variables.
+   * @param {NamedVector} patient - The patient-specific parameters, such as body weight and sensitivity variables.
+   * @param {PatientInput} input - The input data, including insulin infusion rate and carbohydrate intake.
+   * @return {NamedVector} The computed derivatives of the state variables, including subsystems for glucose, insulin, insulin action, and carbohydrate absorption.
+   */
   computeDerivatives(t: number, state: NamedVector, patient: NamedVector, input: PatientInput): NamedVector {
     //console.log("Pre state:", state)
     /** extractions of parameters */
     const BW = patient.BW; // body weight in kg
-
     const AG = patient.AG;     // carbohydrate (CHO) bioavailability
     const MwG = patient.MwG;   // molecular weight of glucose
     const tauI = patient.tauI; // maximum insulin absorption time
@@ -179,19 +174,15 @@ export class HovorkaModel extends Component {
     const ke = patient.ke;
     const ka1 = patient.ka1;
     const VG = patient.VG * BW;
-
     const tauG = patient.tauG; // maximum glucose absorption time
-
     const F01 = patient.F01;   // glucose appearance rate in mmol/min
     const EGP0 = patient.EGP0 * BW; // endogenous glucose production extrapolated to zero insulin concentration
-
     const k12 = patient.k12; // transfer rate from the non-accessible to the accessible compartment
     const SI1 = patient.SI1; // insulin sensitivity of distribution/transport
     const SI2 = patient.SI2; // insulin sensitivity of disposal
     const SI3 = patient.SI3; // insulin sensitivity of EGP
     const ka2 = patient.ka2; // deactivation rate
     const ka3 = patient.ka3; // deactivation rate
-
 
 
     /** extractions of input */
@@ -267,6 +258,13 @@ export class HovorkaModel extends Component {
 
   }
 
+  /**
+   * Computes the glucose concentration based on the provided state and patient parameters.
+   *
+   * @param {NamedVector} state - The state object containing the model nodes such as Q1.
+   * @param {any} patient - The patient object containing attributes like body weight (BW) and VG factor.
+   * @return {number} - The computed glucose concentration in mmol/l.
+   */
   computeOutput(state: NamedVector, patient: any): number {
     /** extractions of model nodes */
     const Q1 = state.Q1;
@@ -279,108 +277,9 @@ export class HovorkaModel extends Component {
   }
 
 
-
-
-
-
-
-
-
-
-
-
-  /**
-   * Updates the model with the given value at the specified time.
-   *
-   * @param {number} t - The current time in minutes.
-   * @param {string} key - The key of the model property to update.
-   * @param {number} newvalue - The new value to set for the model property.
-   */
-  insertValueInModel(t: number, key: string, newvalue: number) {
-    if (this.state[key].max && newvalue > this.state[key].max)
-      newvalue = this.state[key].max;
-    if (this.state[key].min && newvalue < this.state[key].min)
-      newvalue = this.state[key].min;
-    this.state[key].value = newvalue;
-
-    if (this.state[key].history)
-      this.state[key].history.push({t, value: newvalue});
-    else
-      this.state[key].history = [{t, value: newvalue}];
-  }
-
-  /**
-   * Updates the model with the given delta value at the specified time.
-   *
-   * @param {number} t - The current time in minutes.
-   * @param {string} key - The key of the model property to update.
-   * @param {number} delta - The change in value to apply to the model property.
-   */
-  updateModel(state: any, t: number, key: string, value?: number, delta?: number) {
-    let newvalue;
-    if (delta) {
-      newvalue = state[key].value + delta;
-    } else {
-      newvalue = value || 0;
-    }
-    if (state[key].max && newvalue > state[key].max)
-      newvalue = state[key].max;
-    if (state[key].min && newvalue < state[key].min)
-      newvalue = state[key].min;
-    state[key].value = newvalue;
-
-    if (state[key].history || state[key].history.length > 0)
-      state[key].history.push({t, value: newvalue});
-    else
-      state[key].history = [{t, value: newvalue}];
-  }
-
-  /*
-  getParameter() {
-    return parameters
-  }
-
-  getParameterValues(): { [key: string]: number } {
-    return Object.keys(parameters).reduce((acc: { [key: string]: number }, key: string) => {
-      acc[key] = parameters[key].value;
-      return acc;
-    }, {});
-  }
-
-  getIndexFromTime(t: Date): number {
-    return Math.floor((t.valueOf() - this.tInit.valueOf()) / (1000 * 60));
-  }
-
-   */
-
-
   render() {
     return (
       <></>
     );
   }
 }
-
-
-/*
-const parameters: ParameterType = {
-  "EGP0": { unit: "mmol/kg/min", default: 0.0161, value: 0.0161, description: "endogenous glucose production extrapolated to zero insulin concentration" },
-  "F01": { unit: "mmol/kg/min", default: 0.0097, value: 0.0097, description: "non-insulin-dependent glucose ﬂux" },
-  "k12": { unit: "1/min", default: 0.0649, value: 0.0649, description: "transfer rate from the non-accessible to the accessible compartment" },
-  "ka1": { unit: "1/min", default: 0.0055, value: 0.0055, description: "deactivation rate" },
-  "ka2": { unit: "1/min", default: 0.0683, value: 0.0683, description: "deactivation rate" },
-  "ka3": { unit: "1/min", default: 0.0304, value: 0.0304, description: "deactivation rate" },
-  "SI1": { unit: "1/min/U/l", default: 51.2, value: 51.2, description: "insulin sensitivity of distribution/transport" },
-  "SI2": { unit: "1/min/U/l", default: 8.2, value: 8.2, description: "insulin sensitivity of disposal" },
-  "SI3": { unit: "1/U/l", default: 520, value: 520, description: "insulin sensitivity of EGP" },
-  "ke": { unit: "1/min", default: 0.14, value: 0.14, description: "insulin elimination from plasma" },
-  "VI": { unit: "l/kg", default: 0.12, value: 0.12, description: "insulin distribution volume" },
-  "VG": { unit: "l/kg", default: 0.148, value: 0.148, description: "distribution volume of the accessible compartment" },
-  "AG": { unit: "1", default: 0.7, value: 0.7, description: "carbohydrate (CHO) bioavailability" },
-  "MwG": { unit: "g/mol", default: 180.1577, value: 180.1577, description: "molecular weight of glucose" },
-  "BW": { unit: "kg", default: 65, value: 65, description: "body weight in kg" },
-  "tauI": { unit: "min", default: 55, value: 55, description: "time-to-maximum of absorption of subcutaneously injected short-acting insulin"},
-  "tauG": { unit: "min", default: 40, value: 40, description: "time-to-maximum of CHO absorption"},
-}
-
- */
