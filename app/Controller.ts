@@ -42,7 +42,7 @@ export function Controller(name: string, controllerParameters: any, timeStep: nu
 
 
     default:
-      throw new Error("Controller type not recognised");
+      console.error("Controller", name, "not supported yet");
   }
 
   u = Math.max(min, Math.min(max, u + basal));
