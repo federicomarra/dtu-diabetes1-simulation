@@ -1,7 +1,3 @@
-export type ModelType = DefaultType
-
-export type ParameterType = DefaultType
-
 export type PatientInput = {
   carbs: number[];  // grams of carbohydrates' intake
   basal: number[]; // basal insulin rate
@@ -9,11 +5,6 @@ export type PatientInput = {
   d: number[];      // grams of carbohydrate disturbance
   hir?: number;       // insulin-to-carbohydrate ratio
   iir?: number;       // insulin-to-insulin ratio
-}
-
-export type PatientOutput = {
-  Gp: number;
-  Gt?: number;
 }
 
 type DefaultType = {
@@ -28,11 +19,6 @@ type DefaultType = {
   }
 }
 
-
-export type Vector = number[]
-
-export type Matrix = number[][]
-
 export type NamedVector = {
   [id in string]: number
 }
@@ -43,7 +29,6 @@ export type NamedVector = {
  * @param {NamedVector[]} X - Array of vectors
  * @returns {NamedVector} Vector carrying sum of entries.
  */
-
 export function vectorSum(...X: NamedVector[]): NamedVector {
   return X.reduce((a, b) => {
     for (const k in b) {

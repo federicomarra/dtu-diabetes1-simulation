@@ -1,6 +1,5 @@
-import SolverRK4 from "@/app/SolverRK4"
 import { NamedVector, PatientInput } from "@/app/types"
-import { Derivatives } from "@/app/Solver"
+import { Solver, Derivatives } from "@/app/Solver"
 import { HovorkaModel } from "@/app/HovorkaModel";
 import { Controller } from "@/app/Controller";
 
@@ -31,7 +30,7 @@ export function Simulator(modelName: string, carbs: number[], basal: number[], s
   }
 
   model.tInit = tInit;
-  const solver = new SolverRK4();
+  const solver = new Solver();
   solver.reset(tStep) // Set the time step to 1 minute
 
   const steadyState: NamedVector = model.computeSteady(patient, input);
@@ -54,7 +53,7 @@ export function Simulator(modelName: string, carbs: number[], basal: number[], s
     //console.log(`u(${t})=${u_t}`)
 
     // Disturbance computation
-    const disturbanceD: number = 0; // cause it is an ODE and not SDE solver
+    const disturbanceD: number = 0; // because it is an ODE and not an SDE solver
     const carbs_t = input.carbs[t] || 0;
     d_t = Math.max(simParams.disturbance.min, Math.min(simParams.disturbance.max, disturbanceD + carbs_t));
     input.d[t] = d_t;

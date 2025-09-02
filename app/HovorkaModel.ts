@@ -1,18 +1,16 @@
-import { Component } from "react";
 import { NamedVector, PatientInput } from "@/app/types";
 
 /**
  * Represents the Ordinary Differential Equation (ODE) implementation of the Hovorka model,
- * an approach commonly utilized for glucose-insulin simulation in diabetes management systems.
+ * an approach commonly used for glucose-insulin simulation in diabetes management systems.
  * This class includes methods to manage state initialization, compute insulin infusion rates,
  * steady-state dynamics, and glucose-insulin kinetics over time.
  */
-export class HovorkaModel extends Component {
+export class HovorkaModel {
 
   tInit: number = 0; // initial time
 
   constructor(tInit: number) {
-    super({});
     this.tInit = tInit;
   }
 
@@ -34,8 +32,6 @@ export class HovorkaModel extends Component {
     const k12 = patient.k12; // transfer rate from the non-accessible to the accessible compartment
     const VI = patient.VI; // insulin distribution volume
     const ke = patient.ke; // insulin elimination from plasma
-    const AG = patient.AG; // carbohydrate (CHO) bioavailability
-    const MwG = patient.MwG; // molecular weight of glucose
     const tauI = patient.tauI; // maximum insulin absorption time
     const Geq = patient.Geq;  // already in mmol/l
 
@@ -70,7 +66,7 @@ export class HovorkaModel extends Component {
    *   calling computeIIR(patient). The IIR is interpreted in U/hour.
    * - Converts that basal infusion into steady-state subcutaneous insulin stores (S1, S2 = Seq),
    *   plasma insulin (Ieq), and insulin actions (x1eq, x2eq, x3eq).
-   * - Solves the algebraic steady-state relations of the glucose subsystem to obtain Q1eq and Q2eq
+   * - Solves the algebraic steady-state relations of the glucose subsystem to get Q1eq and Q2eq
    *   under the assumption of no active meal absorption (D1 = D2 = 0 at steady state).
    *
    * Inputs and units:
@@ -103,13 +99,13 @@ export class HovorkaModel extends Component {
    * - D2 [mmol]  intestinal glucose content (0 at steady state)
    *
    * Assumptions and requirements:
-   * - No ongoing carbohydrate absorption at steady state: D1 = D2 = 0.
+   * - No ongoing carbohydrate absorption at the steady state: D1 = D2 = 0.
    * - Positive, physiologically meaningful parameters: tauI > 0, ke > 0, VI > 0.
    * - Insulin sensitivities and rates should be non-negative. Division by SI2 (and combinations
    *   involving SI1, SI2) occurs; ensure they are not zero to avoid singularities.
    * - F01eq is capped linearly for Geq < 4.5 mmol/L and saturates above, as per the Hovorka model.
    * - computeIIR(patient) estimates the basal IIR from Geq; if a valid equilibrium for insulin
-   *   cannot be found upstream, the resulting Seq/Ieq may be zero, which propagates to x1..x3.
+   *   cannot be found upstream, the resulting Seq/Ieq may be zero, which propagates to x1, x2, and x3.
    *
    *
    * @param patient Patient physiological parameters and model constants (see fields above).
@@ -125,7 +121,6 @@ export class HovorkaModel extends Component {
     const SI2 = patient.SI2; // insulin sensitivity of disposal
     const SI3 = patient.SI3; // insulin sensitivity of EGP
     const EGP0 = patient.EGP0 * BW; // endogenous glucose production extrapolated to zero insulin concentration
-    const k12 = patient.k12; // transfer rate from the non-accessible to the accessible compartment
     const tauI = patient.tauI; // maximum insulin absorption time
 
     /** equilibrium blood glucose levels in mmol/l */
@@ -148,8 +143,8 @@ export class HovorkaModel extends Component {
         x1: x1eq,   // insulin action on glucose transport
         x2: x2eq,   // insulin action on glucose disposal
         x3: x3eq,   // insulin action on endogenous glucose production (liver)
-        D1: 0,      // glucose absorption in stomach
-        D2: 0,      // glucose absorption in intestine
+        D1: 0,      // glucose absorption in the stomach
+        D2: 0,      // glucose absorption in the intestine
       };
   }
 
@@ -276,10 +271,4 @@ export class HovorkaModel extends Component {
     return G
   }
 
-
-  render() {
-    return (
-      <></>
-    );
-  }
 }
