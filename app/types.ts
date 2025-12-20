@@ -1,10 +1,11 @@
 export type PatientInput = {
-  carbs: number[];  // grams of carbohydrates' intake
-  basal: number[]; // basal insulin rate
-  u: number[];      // insulin units input
-  d: number[];      // grams of carbohydrate disturbance
+  // grams of carbohydrates intake [g]
+  carbs: number[];
+  // basal insulin rate [U/min]
+  basal: number[];
   hir?: number;       // insulin-to-carbohydrate ratio
   iir?: number;       // insulin-to-insulin ratio
+  ir: number;       //
 }
 
 type DefaultType = {

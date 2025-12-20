@@ -1,8 +1,6 @@
 export function Controller(name: string, controllerParameters: any, timeStep: number, desired: number, y: number[], basal: number) {
 
-  const param = name === "P" || name === "PD" || name === "PI" || name === "PID" ? controllerParameters.PID :
-    (name === "EKF" ? controllerParameters.EFK :
-      (name === "MPC" ? controllerParameters.MPC : {}));
+  const param = name === "P" || name === "PD" || name === "PI" || name === "PID" ? controllerParameters.PID : {};
 
   const min: number = controllerParameters.min;
   const max: number = controllerParameters.max;
@@ -37,6 +35,7 @@ export function Controller(name: string, controllerParameters: any, timeStep: nu
       const D = name === "PD" || name === "PID" ? param.Kd * (err - errPrev) / timeStep : 0;
 
       u = P + I + D;
+      console.log(name, "control:", u);
 
       break;
 
@@ -45,7 +44,7 @@ export function Controller(name: string, controllerParameters: any, timeStep: nu
       console.error("Controller", name, "not supported yet");
   }
 
-  u = Math.max(min, Math.min(max, u + basal));
+  u = Math.max(min, Math.min(max, (u / param.InsulinSensitivity ) + basal));
 
   //console.log(name, "control:", u);
 

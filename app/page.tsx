@@ -4,12 +4,12 @@ import { NextPage } from "next";
 import { useState  } from "react";
 import { LineChart } from '@mui/x-charts/LineChart';
 import { Simulator } from "@/app/Simulator";
-import { Fade, FormControlLabel, FormGroup, Switch, Tooltip} from "@mui/material";
+import { Fade, FormControlLabel, FormGroup, Switch, Tooltip } from "@mui/material";
 import { NamedVector } from "@/app/types";
 
 const Home: NextPage = () => {
 
-  const [debug, setDebug] = useState<boolean>(false);
+  const [debug, setDebug] = useState<boolean>(true);  // TODO: remove the true
   const [isSimulationFake, setIsSimulationFake] = useState<boolean>(false);
 
   const MwG = 180.1577; // Molar mass of glucose in g/mol
@@ -59,13 +59,17 @@ const Home: NextPage = () => {
   const defaultDays = possibleDays[0]; // Default number of days for the simulation
   const [days, setDays] = useState<number>(defaultDays);
   const [oldDays, setOldDays] = useState<number>(defaultDays); // State to keep track of the old number of days
-  const possibleTimeSteps = [5, 10, 20, 30, 60]; // Possible time steps in minutes
-  const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 3]; // Default time step in minutes
+  const possibleTimeSteps = [1, 2, 3, 5];//, 10, 20, 30, 60]; // Possible time steps in minutes
+  const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 1]; // Default time step in minutes
   const [timeStep, setTimeStep] = useState<number>(defaultTimeStep); // Time step in minutes
   const timeLength_days = (days: number, timeStep: number) => days * 24 * 60 / timeStep + 1; // Total time length in minutes, +1 to include the 24:00
   const [timeLength, setTimeLength] = useState<number>(timeLength_days(days, timeStep)); // Total time length in minutes if timeStep is 1 minute
   const initTime = (time_length: number) => Array.from({length: time_length}, (_, i) => i)
   const [time, setTime] = useState<number[]>(initTime(timeLength));
+
+  const possibleSolvers = ["Euler", "Runge–Kutta"]  // Possible solvers
+  const defaultSolver = possibleSolvers[0]; // Default solver
+  const [solverName, setSolverName] = useState<string>(defaultSolver); // Initialize the solver
 
   const possibleModels = ["Hovorka"]; // Possible models
   const defaultModel = possibleModels[0]; // Default model
@@ -604,6 +608,7 @@ const Home: NextPage = () => {
       "timeStep": timeStep,
       "time": time,
       "unitMgDl": unitMgDl,
+      "solverName": solverName,
       "modelName": modelName,
       "controller": {
         "name": controllerName,
@@ -613,7 +618,8 @@ const Home: NextPage = () => {
           "PID": {
             "Kp": controllerKp,
             "Kd": controllerKd,
-            "Ki": controllerKi
+            "Ki": controllerKi,
+            "InsulinSensitivity": 2
           },
           "EKF": {
             "A": controllerEkfA,
@@ -638,25 +644,26 @@ const Home: NextPage = () => {
         "max": 150
       }
     }
+    const SIi_factor = 1e-3;
     const patientParams = {  // Parameters for the Patient, following the Hovorka model multiplied by timeStep or divided by timeStep as needed
-      "EGP0": EGP0_value / timeStep,
-      "F01": F01_value / timeStep,
-      "k12": K12_value / timeStep,
-      "ka1": Ka1_value / timeStep,
-      "ka2": Ka2_value / timeStep,
-      "ka3": Ka3_value / timeStep,
-      "SI1": SI1_value / timeStep,
-      "SI2": SI2_value / timeStep,
-      "SI3": SI3_value,
-      "ke": Ke_value / timeStep,
-      "VI": VI_value,
-      "VG": VG_value,
-      "tauI": TauI_value * timeStep,
-      "tauG": TauG_value * timeStep,
-      "AG": AG_value,
-      "BW": BW_value,
-      "MwG": MwG,
-      "Geq": TargetBG // Equilibrium glucose concentration in mmol/L, it has been set to 5.5 mmol/L
+      "EGP0": EGP0_value,  // mmol/kg/min - Endogenous glucose production
+      "F01": F01_value,    // mmol/kg/min - Insulin-independent glucose flux
+      "k12": K12_value,    // min^-1 - Transfer rate between compartments 
+      "ka1": Ka1_value,    // min^-1 - Insulin absorption rate from compartment 1
+      "ka2": Ka2_value,    // min^-1 - Insulin absorption rate from compartment 2
+      "ka3": Ka3_value,    // min^-1 - Insulin absorption rate from compartment 3
+      "SI1": SI1_value * SIi_factor,    // min^-1/(mU/L) - Insulin sensitivity for transport/distribution
+      "SI2": SI2_value * SIi_factor,    // min^-1/(mU/L) - Insulin sensitivity for disposal
+      "SI3": SI3_value * SIi_factor,    // L/mU - Insulin sensitivity for EGP
+      "ke": Ke_value,      // min^-1 - Insulin elimination rate 
+      "VI": VI_value,      // L/kg - Insulin distribution volume
+      "VG": VG_value,      // L/kg - Glucose distribution volume
+      "tauI": TauI_value,  // min - Insulin infusion time constant
+      "tauG": TauG_value,  // min - Glucose absorption time constant  
+      "AG": AG_value,      // Unitless - Carbohydrate bioavailability
+      "BW": BW_value,      // kg - Body weight
+      "MwG": MwG,          // g/mol - Molar mass of glucose
+      "Geq": TargetBG      // mmol/L - Target/equilibrium glucose concentration 
     };
 
     const dCho: number[] = areMealsActive ? getDCho(days, timeStep) : getEmptyArray(days, timeStep);
@@ -682,7 +689,7 @@ const Home: NextPage = () => {
       setStates([{}])
 
     } else {
-      const simulationRes = Simulator(modelName, dCho, uIns, simulationParams, patientParams);
+      const simulationRes = Simulator(modelName, solverName, dCho, uIns, simulationParams, patientParams);
       const simulationOutput = simulationRes[0];
       if (unitMgDl) {
         setOutput(simulationOutput.map(glycemia => convertGlycemia(glycemia, unitMgDl)));
@@ -817,6 +824,27 @@ const Home: NextPage = () => {
                       <option key={model} value={model}>{model}</option>
                     ))}
                   </select>*/}
+                </td>
+              </tr>
+
+              <tr>
+                <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Solver</td>
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
+                  <select
+                    id="solver"
+                    name="solver"
+                    onChange={(e) => {
+                      const newSolverName = String(e.target.value);
+                      setIsGraphOld(newSolverName !== solverName); // Set the graph to old state to trigger re-render
+                      setSolverName(newSolverName);
+                    }}
+                    data-np-intersection-state="observed"
+                    defaultValue={defaultSolver}
+                  >
+                    {possibleSolvers.map((solver) => (
+                      <option key={solver} value={solver}>{solver}</option>
+                    ))}
+                  </select>
                 </td>
               </tr>
 
@@ -1563,7 +1591,7 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}, {<input
                   type="text" step={AG_step} className="w-[3.5ch] px-1 text-right" name="AG max"
                   onChange={(e) => setAG_max(Number(e.target.value))} value={AG_max}
-                  data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  data-np-intersection-state="observed"/>})
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <Tooltip title={AG_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
@@ -1595,7 +1623,7 @@ const Home: NextPage = () => {
                   data-np-intersection-state="observed"/>}, {<input
                   type="text" step={BW_step} className="w-[3.5ch] px-1 text-right" name="BW max"
                   onChange={(e) => setBW_max(Number(e.target.value))} value={BW_max}
-                  data-np-intersection-state="observed"/>}<sup>2</sup>)
+                  data-np-intersection-state="observed"/>})
                 </td>
                 <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                   <Tooltip title={BW_description} placement="right"slots={{transition: Fade}} slotProps={{transition: { timeout: 500 }}} className="p-3" style={{borderColor: "var(--primary)", color: "var(--primary)"}}>
