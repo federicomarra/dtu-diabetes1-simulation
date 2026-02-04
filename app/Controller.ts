@@ -14,7 +14,7 @@ export function Controller(name: string, controllerParameters: any, timeStep: nu
   //console.log(name, "error:", err);
 
 
-  let u: number = 0;
+  let u_diff: number = 0;
 
   switch (name.toUpperCase()) {
     case "P":   // Proportional controller
@@ -34,8 +34,8 @@ export function Controller(name: string, controllerParameters: any, timeStep: nu
       // Derivative
       const D = name === "PD" || name === "PID" ? param.Kd * (err - errPrev) / timeStep : 0;
 
-      u = P + I + D;
-      console.log(name, "control:", u);
+      u_diff = P + I + D;
+      console.log(name, "control DIFF:", u_diff);
 
       break;
 
@@ -43,10 +43,13 @@ export function Controller(name: string, controllerParameters: any, timeStep: nu
     default:
       console.error("Controller", name, "not supported yet");
   }
+  console.log(name, "BASAL:", basal);
+  const u_insulin = (u_diff / param.InsulinSensitivity ) + basal;
+  console.log(name, "control INSUL:", u_insulin);
+  const u_bound = Math.max(min, Math.min(max, u_insulin));
+  console.log(name, "control BOUND:", u_bound);
 
-  u = Math.max(min, Math.min(max, (u / param.InsulinSensitivity ) + basal));
-
-  //console.log(name, "control:", u);
+  const u = u_bound / 1000;  // [mU/min]
 
   return u;
 }

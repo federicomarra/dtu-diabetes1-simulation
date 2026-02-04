@@ -9,7 +9,7 @@ import { NamedVector } from "@/app/types";
 
 const Home: NextPage = () => {
 
-  const [debug, setDebug] = useState<boolean>(true);  // TODO: remove the true
+  const [debug, setDebug] = useState<boolean>(false);  // TODO: remove the true
   const [isSimulationFake, setIsSimulationFake] = useState<boolean>(false);
 
   const MwG = 180.1577; // Molar mass of glucose in g/mol
@@ -78,9 +78,11 @@ const Home: NextPage = () => {
   const possibleControllers = ["P", "PD", "PI", "PID"] //, "EKF", "MPC"]; // Possible controllers
   const defaultController = possibleControllers[3]; // Default controller
   const [controllerName, setControllerName] = useState<string>(defaultController); // Initialize the controller
-  const [controllerKp, setControllerKp] = useState<number>(0.2); // Proportional gain for P controller
-  const [controllerKd, setControllerKd] = useState<number>(0.7); // Derivative gain for PD controller
-  const [controllerKi, setControllerKi] = useState<number>(0.3); // Integral gain for PID controller
+  const [insulinMin, setInsulinMin] = useState<number>(0);          // mU
+  const [insulinMax, setInsulinMax] = useState<number>(15);         // mU
+  const [controllerKp, setControllerKp] = useState<number>(0.05); // Proportional gain for P controller
+  const [controllerKd, setControllerKd] = useState<number>(0.001); // Derivative gain for PD controller
+  const [controllerKi, setControllerKi] = useState<number>(0.01); // Integral gain for PID controller
   const [controllerEkfA, setControllerEkfA] = useState<number>(1);  // Ekf state transition scalar
   const [controllerEkfB, setControllerEkfB] = useState<number>(1);  // Ekf control-input scalar
   const [controllerEkfC, setControllerEkfC] = useState<number>(1);  // Ekf measurement scalar
@@ -153,7 +155,7 @@ const Home: NextPage = () => {
   const [EGP0_mean, setEGP0_mean] = useState(0.0161); // EGP0 mean value in mmol/min/kg
   const [EGP0_stdDev, setEGP0_stdDev] = useState(0.0039); // EGP0 standard deviation in mmol/min/kg
   const EGP0_step = 0.0001; // EGP0 step size for input field
-  const [EGP0_value, setEGP0_value] = useState(generateValueGivenMeanAndStdDev(EGP0_mean, EGP0_stdDev, EGP0_step)); // EGP0 initial value in mmol/min/kg
+  const [EGP0_value, setEGP0_value] = useState(EGP0_mean); // EGP0 initial value in mmol/min/kg
   const EGP0_unit = "mmol / kg / min"; // EGP0 unit
   const EGP0_description = "Endogenous glucose production rate is the rate at which glucose is produced by the liver in the absence of food intake or insulin stimulation. It is a key parameter in glucose metabolism and regulation.";
 
@@ -161,7 +163,7 @@ const Home: NextPage = () => {
   const [F01_mean, setF01_mean] = useState(0.0097); // F01 mean value in mmol/kg/min
   const [F01_stdDev, setF01_stdDev] = useState(0.0022); // F01 standard deviation in mmol/kg/min
   const F01_step = 0.0001; // F01 step size for the input field
-  const [F01_value, setF01_value] = useState(generateValueGivenMeanAndStdDev(F01_mean, F01_stdDev, F01_step)); // F01 initial value in mmol/kg/min
+  const [F01_value, setF01_value] = useState(F01_mean); // F01 initial value in mmol/kg/min
   const F01_unit = "mmol / kg / min"; // F01 unit
   const F01_description = "Insulin-independent glucose flux represents the amount of glucose uptake that occurs without insulin influence.";
 
@@ -169,7 +171,7 @@ const Home: NextPage = () => {
   const [K12_mean, setK12_mean] = useState(0.0649); // K12 mean value in min^-1
   const [K12_stdDev, setK12_stdDev] = useState(0.0282); // K12 standard deviation in min^-1
   const K12_step = 0.0001; // K12 step size for the input field
-  const [K12_value, setK12_value] = useState(generateValueGivenMeanAndStdDev(K12_mean, K12_stdDev, K12_step)); // K12 initial value in min^-1
+  const [K12_value, setK12_value] = useState(K12_mean); // K12 initial value in min^-1
   const K12_unit = "min⁻¹"; // K12 unit
   const K12_description = "Transfer rate between the accessible and non-accessible glucose compartments.";
 
@@ -177,7 +179,7 @@ const Home: NextPage = () => {
   const [Ka1_mean, setKa1_mean] = useState(0.0055); // Ka1 mean value in min^-1
   const [Ka1_stdDev, setKa1_stdDev] = useState(0.0056); // Ka1 standard deviation in min^-1
   const Ka1_step = 0.0001; // Ka1 step size for input field
-  const [Ka1_value, setKa1_value] = useState(generateValueGivenMeanAndStdDev(Ka1_mean, Ka1_stdDev, Ka1_step)); // Ka1 initial value in min^-1
+  const [Ka1_value, setKa1_value] = useState(Ka1_mean); // Ka1 initial value in min^-1
   const Ka1_unit = "min⁻¹"; // Ka1 unit
   const Ka1_description = "Rate constant for insulin absorption from the subcutaneous tissue.";
 
@@ -185,7 +187,7 @@ const Home: NextPage = () => {
   const [Ka2_mean, setKa2_mean] = useState(0.0683); // Ka2 mean value in min^-1
   const [Ka2_stdDev, setKa2_stdDev] = useState(0.0507); // Ka2 standard deviation in min^-1
   const Ka2_step = 0.0001; // Ka2 step size for input field
-  const [Ka2_value, setKa2_value] = useState(generateValueGivenMeanAndStdDev(Ka2_mean, Ka2_stdDev, Ka2_step)); // Ka2 initial value in min^-1
+  const [Ka2_value, setKa2_value] = useState(Ka2_mean); // Ka2 initial value in min^-1
   const Ka2_unit = "min⁻¹"; // Ka2 unit
   const Ka2_description = "Second rate constant for insulin absorption model.";
 
@@ -193,7 +195,7 @@ const Home: NextPage = () => {
   const [Ka3_mean, setKa3_mean] = useState(0.0304); // Ka3 mean value in min^-1
   const [Ka3_stdDev, setKa3_stdDev] = useState(0.0235); // Ka3 standard deviation in min^-1
   const Ka3_step = 0.0001; // Ka3 step size for input field
-  const [Ka3_value, setKa3_value] = useState(generateValueGivenMeanAndStdDev(Ka3_mean, Ka3_stdDev, Ka3_step)); // Ka3 initial value in min^-1
+  const [Ka3_value, setKa3_value] = useState(Ka3_mean); // Ka3 initial value in min^-1
   const Ka3_unit = "min⁻¹"; // Ka3 unit
   const Ka3_description = "Third rate constant for insulin absorption model.";
 
@@ -201,7 +203,7 @@ const Home: NextPage = () => {
   const [SI1_mean, setSI1_mean] = useState(51.2); // SI1 mean value in min^-1/(mU/L)
   const [SI1_stdDev, setSI1_stdDev] = useState(32.09); // SI1 standard deviation in min^-1/(mU/L)
   const SI1_step = 0.1; // SI1 step size for the input field
-  const [SI1_value, setSI1_value] = useState(generateValueGivenMeanAndStdDev(SI1_mean, SI1_stdDev, SI1_step)); // SI1 initial value in min^-1/(mU/L)
+  const [SI1_value, setSI1_value] = useState(SI1_mean); // SI1 initial value in min^-1/(mU/L)
   const SI1_unit = "min⁻¹ / (mU / L)"; // SI1 unit
   const SI1_description = "Insulin sensitivity parameter affecting glucose transport from plasma.";
 
@@ -209,7 +211,7 @@ const Home: NextPage = () => {
   const [SI2_mean, setSI2_mean] = useState(8.2); // SI2 mean value in min^-1/(mU/L)
   const [SI2_stdDev, setSI2_stdDev] = useState(7.84); // SI2 standard deviation in min^-1/(mU/L)
   const SI2_step = 0.1; // SI2 step size for input field
-  const [SI2_value, setSI2_value] = useState(generateValueGivenMeanAndStdDev(SI2_mean, SI2_stdDev, SI2_step)); // SI2 initial value in min^-1/(mU/L)
+  const [SI2_value, setSI2_value] = useState(SI2_mean); // SI2 initial value in min^-1/(mU/L)
   const SI2_unit = "min⁻¹ / (mU / L)"; // SI2 unit
   const SI2_description = "Insulin sensitivity parameter for the disposal of glucose.";
 
@@ -217,7 +219,7 @@ const Home: NextPage = () => {
   const [SI3_mean, setSI3_mean] = useState(520); // SI3 mean value in L/mU
   const [SI3_stdDev, setSI3_stdDev] = useState(306.2); // SI3 standard deviation in L/mU
   const SI3_step = 1; // SI3 step size for input field
-  const [SI3_value, setSI3_value] = useState(generateValueGivenMeanAndStdDev(SI3_mean, SI3_stdDev, SI3_step)); // SI3 initial value in L/mU
+  const [SI3_value, setSI3_value] = useState(SI3_mean); // SI3 initial value in L/mU
   const SI3_unit = "L / mU"; // SI3 unit
   const SI3_description = "Insulin sensitivity parameter affecting endogenous glucose production.";
 
@@ -225,7 +227,7 @@ const Home: NextPage = () => {
   const [Ke_mean, setKe_mean] = useState(0.14); // Ke mean value in min^-1
   const [Ke_stdDev, setKe_stdDev] = useState(0.035); // Ke standard deviation in min^-1
   const Ke_step = 0.01; // Ke step size for input field
-  const [Ke_value, setKe_value] = useState(generateValueGivenMeanAndStdDev(Ke_mean, Ke_stdDev, Ke_step)); // Ke initial value in min^-1
+  const [Ke_value, setKe_value] = useState(Ke_mean); // Ke initial value in min^-1
   const Ke_unit = "min⁻¹"; // Ke unit
   const Ke_description = "Insulin elimination rate constant, representing the rate at which insulin is cleared from the bloodstream.";
 
@@ -233,7 +235,7 @@ const Home: NextPage = () => {
   const [VI_mean, setVI_mean] = useState(0.12); // VI mean value in L/kg
   const [VI_stdDev, setVI_stdDev] = useState(0.012); // VI standard deviation in L/kg
   const VI_step = 0.01; // VI step size for input field
-  const [VI_value, setVI_value] = useState(generateValueGivenMeanAndStdDev(VI_mean, VI_stdDev, VI_step)); // VI initial value in L/kg
+  const [VI_value, setVI_value] = useState(VI_mean); // VI initial value in L/kg
   const VI_unit = "L / kg"; // VI unit
   const VI_description = "Insulin distribution volume, representing the volume in which insulin is distributed in the body.";
 
@@ -241,7 +243,7 @@ const Home: NextPage = () => {
   const [VG_mean, setVG_mean] = useState(1.16); // VG mean value in L/kg
   const [VG_stdDev, setVG_stdDev] = useState(0.23); // VG standard deviation in L/kg
   const VG_step = 0.01; // VG step size for input field
-  const [VG_value, setVG_value] = useState(generateValueGivenMeanAndStdDev(VG_mean, VG_stdDev, VG_step, "exp")); // VG initial value in L/kg
+  const [VG_value, setVG_value] = useState(Math.log(VG_mean)); // VG initial value in L/kg, the distrib is exp
   const VG_unit = "L / kg"; // VG unit
   const VG_description = "Volume of distribution for glucose, representing the volume in which glucose is distributed in the body.";
 
@@ -249,7 +251,7 @@ const Home: NextPage = () => {
   const [TauI_mean, setTauI_mean] = useState(0.018); // TauI mean value in hours
   const [TauI_stdDev, setTauI_stdDev] = useState(0.0045); // TauI standard deviation in hours
   const TauI_step = 0.001; // TauI step size for input field
-  const [TauI_value, setTauI_value] = useState(generateValueGivenMeanAndStdDev(TauI_mean, TauI_stdDev, TauI_step, "div")); // TauI initial value in hours
+  const [TauI_value, setTauI_value] = useState(roundToDecimal(1 / TauI_mean, TauI_step)); // TauI initial value in hours, the distrib is 1/tauI
   const TauI_unit = "min"; // TauI unit
   const TauI_description = "Insulin infusion time constant, representing the time it takes for insulin to reach its peak effect after infusion.";
 
@@ -257,7 +259,7 @@ const Home: NextPage = () => {
   const [TauG_mean, setTauG_mean] = useState(-3.689); // TauG mean value in hours
   const [TauG_stdDev, setTauG_stdDev] = useState(0.25); // TauG standard deviation in hours
   const TauG_step = 0.001; // TauG step size for input field
-  const [TauG_value, setTauG_value] = useState(generateValueGivenMeanAndStdDev(TauG_mean, TauG_stdDev, TauG_step, "divln")); // TauG initial value in hours
+  const [TauG_value, setTauG_value] = useState(roundToDecimal(1 / Math.exp(TauG_mean), TauG_step)); // TauG initial value in hours, the distrib is 1/ln(tauG)
   const TauG_unit = "min"; // TauG unit
   const TauG_description = "Glucose infusion time constant, representing the time it takes for glucose to reach its peak effect after infusion.";
 
@@ -265,7 +267,7 @@ const Home: NextPage = () => {
   const [AG_min, setAG_min] = useState(0.7); // AG mean value
   const [AG_max, setAG_max] = useState(1.2); // AG standard deviation
   const AG_step = 0.1; // AG step size for the input field
-  const [AG_value, setAG_value] = useState(generateValueGivenMeanAndStdDev(AG_min, AG_max, AG_step, "uniform")); // AG initial value
+  const [AG_value, setAG_value] = useState(roundToDecimal((AG_max + AG_min) / 2, AG_step)); // AG initial value, uniform distrib
   const AG_unit = "Unitless"; // AG unit
   const AG_description = "Glucose absorption rate, representing the rate at which glucose is absorbed from the gastrointestinal tract into the bloodstream.";
 
@@ -273,7 +275,7 @@ const Home: NextPage = () => {
   const [BW_min, setBW_min] = useState(65); // BW mean value in kg
   const [BW_max, setBW_max] = useState(95); // BW standard deviation in kg
   const BW_step = 1; // BW step size for input field
-  const [BW_value, setBW_value] = useState(generateValueGivenMeanAndStdDev(BW_min, BW_max, BW_step, "uniform")); // BW initial value in kg
+  const [BW_value, setBW_value] = useState(roundToDecimal((BW_min + BW_max) / 2, BW_step)); // BW initial value in kg, uniform distrib
   const BW_unit = "kg"; // BW unit
   const BW_description = "Body weight of the patient, which influences insulin sensitivity and glucose metabolism.";
 
@@ -336,7 +338,7 @@ const Home: NextPage = () => {
   const basal_stdDev = ins_step * 2; // Standard deviation for basal insulin values
   const basal_hour_starts = [0, 8, 12, 20]; // Basal insulin times in hours for breakfast, lunch, snack, and dinner
   const basal_time = (i: number, time_step: number) => basal_hour_starts[i] * 60 / time_step; // Convert meal hours to minutes based on timeStep
-  const [basal00, setBasal00] = useState(generateValueGivenMeanAndStdDev(1.5, basal_stdDev, ins_step));
+  const [basal00, setBasal00] = useState(1.05);
   const [basal08, setBasal08] = useState(generateValueGivenMeanAndStdDev(1.3, 0.4, ins_step));
   const [basal12, setBasal12] = useState(generateValueGivenMeanAndStdDev(1.9, 0.1, ins_step));
   const [basal20, setBasal20] = useState(generateValueGivenMeanAndStdDev(1.7, 0.2, ins_step));
@@ -613,8 +615,8 @@ const Home: NextPage = () => {
       "controller": {
         "name": controllerName,
         "params": {
-          "min": 0,
-          "max": 15,
+          "min": insulinMin,
+          "max": insulinMax,
           "PID": {
             "Kp": controllerKp,
             "Kd": controllerKd,
@@ -669,8 +671,8 @@ const Home: NextPage = () => {
     const dCho: number[] = areMealsActive ? getDCho(days, timeStep) : getEmptyArray(days, timeStep);
     const uIns: number[] = isBasalActive ? getUIns(days, timeStep) : getEmptyArray(days, timeStep);
 
-    //console.log("dCho array:", dCho);
-    //console.log("uIns array:", uIns);
+    console.log("dCho array:", dCho);
+    console.log("uIns array:", uIns);
 
     if (isSimulationFake) {
       const total_length = days * 24 * 60 / timeStep + 1; // Length of one day in minutes based on timeStep
@@ -829,8 +831,8 @@ const Home: NextPage = () => {
 
               <tr>
                 <td className="border px-4 py-2 font-bold" style={{borderColor: "var(--primary)"}}>Solver</td>
-                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>
-                  <select
+                <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{defaultSolver}
+                  {/*<select
                     id="solver"
                     name="solver"
                     onChange={(e) => {
@@ -844,7 +846,7 @@ const Home: NextPage = () => {
                     {possibleSolvers.map((solver) => (
                       <option key={solver} value={solver}>{solver}</option>
                     ))}
-                  </select>
+                  </select>*/}
                 </td>
               </tr>
 
@@ -881,7 +883,7 @@ const Home: NextPage = () => {
                       max="2"
                       step="0.01"
                       data-np-intersection-state="observed"
-                      className="w-[6.5ch] px-1 text-left"
+                      className="w-[7.5ch] px-1 text-left"
                     />
                   </td>
                 </tr>
@@ -899,7 +901,7 @@ const Home: NextPage = () => {
                       max="2"
                       step="0.01"
                       data-np-intersection-state="observed"
-                      className="w-[6.5ch] px-1 text-left"
+                      className="w-[7.5ch] px-1 text-left"
                     />
                   </td>
                 </tr>
@@ -915,9 +917,9 @@ const Home: NextPage = () => {
                       onChange={(e) => setParameter(Number(e.target.value), "Kd")}
                       min="0"
                       max="2"
-                      step="0.01"
+                      step="0.001"
                       data-np-intersection-state="observed"
-                      className="w-[6.5ch] px-1 text-left"
+                      className="w-[7.5ch] px-1 text-left"
                     />
                   </td>
                 </tr>

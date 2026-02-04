@@ -37,7 +37,7 @@ export function Simulator(modelName: string, solverName: string, carbs: number[]
   //const steadyState: NamedVector = model.computeSteady(patient, inputAndDist);
 
   const basalInit = basal[0] * 1000 / 60; // [mU/min] Initial insulin rate
-  let us = basalInit; // [mU] Initial insulin rate
+  let us = basalInit || 1050; // [mU] Initial insulin rate
 
   //let us = model.computeIIR(patient); // [mU] Initial insulin rate
 
@@ -86,10 +86,12 @@ export function Simulator(modelName: string, solverName: string, carbs: number[]
   const inputHistory: number[] = [];
   const disturbanceHistory: number[] = [];
 
+  const NO_CONTROL = false;   // TODO: REMOVE
   while (t < tEnd) {
     // Control computation
-    //const u_t = Controller(simParams.controller.name, simParams.controller.params, tStep, patient.Geq, outputHistory, inputAndDist.basal[t]);
-    const u_t = 0;  // TODO: REMOVE
+    let u_t = Controller(simParams.controller.name, simParams.controller.params, tStep, patient.Geq, outputHistory, inputAndDist.basal[t]);
+    //u_t = u_t / 1000 //* tStep; // Convert U/min to mU/min
+    if(NO_CONTROL) u_t = 0;  // TODO: REMOVE
     console.log(`u(${t})=${u_t}`)
 
     // Disturbance computation
