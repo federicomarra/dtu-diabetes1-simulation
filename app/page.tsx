@@ -16,6 +16,7 @@ const Home: NextPage = () => {
   const TargetBG = 5.5; // Target blood glucose level in mmol/L
 
   const roundToDecimal = (value: number, decimals: number): number => {
+    if (value === 0 || value == null || Number.isNaN(value) || !Number.isFinite(value)) return 0; // Handle zero / invalid numbers to avoid -0 and NaN
     const factor = Math.pow(10, decimals);
     return Math.round(value * factor) / factor;
   }
@@ -98,8 +99,8 @@ const Home: NextPage = () => {
   // Glycemia unit: false for mmol/L, true for mg/dL
   const [unitMgDl, setUnitMgDl] = useState<boolean>(false); // false for mmol/L, true for mg/dL
   const glycStep = () => unitMgDl ? 1 : 0.1;
-  const initMinGlyc = () => unitMgDl ? 50 : 2.8;
-  const initMaxGlyc = () => unitMgDl ? 300 : 16.7;
+  const initMinGlyc = () => unitMgDl ? 0 : 0;
+  const initMaxGlyc = () => unitMgDl ? 500 : 27.7;
   const initGoodMinGlyc = () => unitMgDl ? 80 : 4.4; // Good minimum glycemia value in mmol/L or mg/dL
   const initGoodMaxGlyc = () => unitMgDl ? 150 : 8.3; // Good maximum glycemia value in mmol/L or mg/dL
   const initDesiredGlyc = () => unitMgDl ? 100 : TargetBG; // Desired glycemia value in mmol/L or mg/dL
@@ -340,7 +341,7 @@ const Home: NextPage = () => {
   const basal_time = (i: number, time_step: number) => basal_hour_starts[i] * 60 / time_step; // Convert meal hours to minutes based on timeStep
   const [basal00, setBasal00] = useState(1.05);
   const [basal08, setBasal08] = useState(generateValueGivenMeanAndStdDev(1.3, 0.4, ins_step));
-  const [basal12, setBasal12] = useState(generateValueGivenMeanAndStdDev(1.9, 0.1, ins_step));
+  const [basal12, setBasal12] = useState(generateValueGivenMeanAndStdDev(1.5, 0.1, ins_step));
   const [basal20, setBasal20] = useState(generateValueGivenMeanAndStdDev(1.7, 0.2, ins_step));
   let basal = [
     {
@@ -1774,13 +1775,13 @@ const Home: NextPage = () => {
                 onChange={(event) => setDebug(event.target.checked)}
                 className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
                 style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
-              />} label={debug ? "Debug on" : "Debug off"} labelPlacement="start"/></FormGroup>
-              <FormGroup><FormControlLabel control={<Switch
+              />} label={debug ? "Full sim log on" : "Full simulation log off"} labelPlacement="start"/></FormGroup>
+              {/*<FormGroup><FormControlLabel control={<Switch
                 checked={!isSimulationFake}
                 onChange={(event) => {setIsSimulationFake(!event.target.checked); setIsGraphOld(true)}}
                 className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
                 style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
-              />} label={isSimulationFake ? "Fake sim" : "True sim"} labelPlacement="start"/></FormGroup>
+              />} label={isSimulationFake ? "Fake sim" : "True sim"} labelPlacement="start"/></FormGroup>*/}
             </div>
             <div className="overflow-x-auto" style={{backgroundColor: "var(--snow-white)", borderRadius: "26.5px"}}>
               {Array.from({length: days}).map((_, dayIndex) => {
@@ -1844,13 +1845,13 @@ const Home: NextPage = () => {
 
             { debug && !isSimulationFake && !isGraphOld && states && input && disturbance && (
             <div className="overflow-x-auto overflow-visible relative mt-10">
-              <table className="w-3/4 mx-auto border-collapse border overflow-visible relative"
+              <table className="w-4/5 mx-auto border-collapse border overflow-visible relative"
                      style={{borderColor: "var(--primary)"}}>
                 <thead>
                 <tr className="bg-blue-950 text-white" style={{borderColor: "var(--primary)"}}>
                   <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Index</th>
                   <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Time</th>
-                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Output [{unitMgDl ? "mg / dL" : "mmol / L"}]</th>
+                  <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Output [ {unitMgDl ? "mg/dL" : " mmol/L"} ]</th>
                   <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Input [ U ]</th>
                   <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>Disturbance [ g ]</th>
                   <th className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>State</th>
@@ -1862,9 +1863,11 @@ const Home: NextPage = () => {
                   <tr key={index}>
                     <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{index}</td>
                     <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{convertTimeToHours(index, timeStep)}</td>
-                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{elem}</td>
-                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{input[index]}</td>
-                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{disturbance[index]}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)"}}>{roundToDecimal(elem, 3)}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)", color: (input[index]) > 0 ? "var(--primary)" : "var(--tertiary)"}}>{roundToDecimal(input[index], 5)}</td>
+                    <td className="border px-4 py-2" style={{borderColor: "var(--primary)", color: (disturbance[index]) > 0 ? "var(--primary)" : "var(--tertiary)"}}>
+                      {disturbance[index] ?? 0}
+                    </td>
                     <td className="border px-4 py-2 text-center relative w-20" style={{borderColor: "var(--primary)"}}>
                       <Tooltip title={convertStateIntoString(states[index])} placement="right"
                                slots={{transition: Fade}} slotProps={{transition: {timeout: 500}}} className="p-3"
