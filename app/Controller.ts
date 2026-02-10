@@ -27,7 +27,7 @@ export function Controller(name: string, controllerParameters: any, timeStep: nu
 
       // Integrative
       const integral_err: number =  y.reduce((acc, _, i) => {
-        return acc + (y[i] - desired);  // Integral sum of all previous errors
+        return acc + ((y[i] - desired)*(1/(i+1)));  // Integral sum of all previous errors
       }, 0);
       const I = name === "PI" || name === "PID" ? param.Ki * integral_err * timeStep : 0;
 
@@ -44,7 +44,7 @@ export function Controller(name: string, controllerParameters: any, timeStep: nu
       console.error("Controller", name, "not supported yet");
   }
   console.log(name, "BASAL:", basal);
-  const u_insulin = (u_diff / param.InsulinSensitivity ) + basal;
+  const u_insulin = (u_diff / param.InsulinSensitivity )// + basal;
   console.log(name, "control INSUL:", u_insulin);
   const u_bound = Math.max(min, Math.min(max, u_insulin));
   console.log(name, "control BOUND:", u_bound);

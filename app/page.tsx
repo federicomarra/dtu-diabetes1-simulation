@@ -83,7 +83,7 @@ const Home: NextPage = () => {
   const [insulinMax, setInsulinMax] = useState<number>(15);         // mU
   const [controllerKp, setControllerKp] = useState<number>(0.05); // Proportional gain for P controller
   const [controllerKd, setControllerKd] = useState<number>(0.001); // Derivative gain for PD controller
-  const [controllerKi, setControllerKi] = useState<number>(0.01); // Integral gain for PID controller
+  const [controllerKi, setControllerKi] = useState<number>(0.5); // Integral gain for PID controller
   const [controllerEkfA, setControllerEkfA] = useState<number>(1);  // Ekf state transition scalar
   const [controllerEkfB, setControllerEkfB] = useState<number>(1);  // Ekf control-input scalar
   const [controllerEkfC, setControllerEkfC] = useState<number>(1);  // Ekf measurement scalar
@@ -1697,12 +1697,12 @@ const Home: NextPage = () => {
         <div className="mt-8 overflow-visible relative">
           <div className="overflow-visible relative flex justify-between items-center mr-2">
             <h2 className="text-2xl font-semibold ml-2 overflow-visible relative">Basal Insulin Intake</h2>
-            <FormGroup><FormControlLabel control={<Switch
+            {/*<FormGroup><FormControlLabel control={<Switch
               checked={isBasalActive}
               onChange={(event) => setIsBasalActive(event.target.checked)}
               className="mt-4 mr-2 mb-4 px-4 py-2.5 text-center px-4 py-2 text-base font-bold rounded-full cursor-pointer"
               style={{color: "var(--primary)", backgroundColor: "var(--secondary)"}}
-            />} label={isBasalActive ? "On" : "Off"} labelPlacement="start"/></FormGroup>
+            />} label={isBasalActive ? "On" : "Off"} labelPlacement="start"/></FormGroup>*/}
           </div>
           {isBasalActive && (
             <div className="overflow-x-auto overflow-visible relative">
