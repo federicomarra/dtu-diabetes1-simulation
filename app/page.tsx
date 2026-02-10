@@ -60,8 +60,8 @@ const Home: NextPage = () => {
   const defaultDays = possibleDays[0]; // Default number of days for the simulation
   const [days, setDays] = useState<number>(defaultDays);
   const [oldDays, setOldDays] = useState<number>(defaultDays); // State to keep track of the old number of days
-  const possibleTimeSteps = [1, 2, 3, 5];//, 10, 20, 30, 60]; // Possible time steps in minutes
-  const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 1]; // Default time step in minutes
+  const possibleTimeSteps = [2, 3, 5, 10];// 20, 30, 60]; // Possible time steps in minutes
+  const defaultTimeStep = possibleTimeSteps[possibleTimeSteps.length - 2]; // Default time step in minutes
   const [timeStep, setTimeStep] = useState<number>(defaultTimeStep); // Time step in minutes
   const timeLength_days = (days: number, timeStep: number) => days * 24 * 60 / timeStep + 1; // Total time length in minutes, +1 to include the 24:00
   const [timeLength, setTimeLength] = useState<number>(timeLength_days(days, timeStep)); // Total time length in minutes if timeStep is 1 minute
